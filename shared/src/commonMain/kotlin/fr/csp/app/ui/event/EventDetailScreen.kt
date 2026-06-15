@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -16,6 +17,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
@@ -168,33 +172,51 @@ private fun nameInitials(name: String) =
 
 @Composable
 private fun ParticipantAvatars(joined: Boolean, count: Int) {
-    val mockNames = listOf("Léa Bart", "Marc Dauphin", "Tom Roy")
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (joined) {
-            AvatarCircle("Moi", isYou = true, modifier = Modifier.zIndex(4f))
-        }
-        mockNames.forEachIndexed { i, name ->
-            AvatarCircle(
-                initials = nameInitials(name),
-                modifier = Modifier
-                    .offset(x = if (i > 0 || joined) (-12).dp else 0.dp)
-                    .zIndex((3 - i).toFloat()),
-            )
-        }
+    val shades = listOf(Color(0xFFCFD8DC), Color(0xFFB0BEC5), Color(0xFF90A4AE), Color(0xFF78909C), Color(0xFF607D8B))
+    val greyTotal = if (joined) (count - 1).coerceAtLeast(0) else count
+    val greySlots = if (joined) 4 else 5
+    val showOverflow = greyTotal > greySlots
+    val greyFaces = if (greyTotal == 0) 0 else if (showOverflow) greySlots - 1 else greyTotal
+    val overflowN = greyTotal - greyFaces
+
+    if (count == 0 && !joined) {
         Box(
             modifier = Modifier
-                .offset(x = (-12).dp)
-                .zIndex(0f)
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(CspColors.Surface3)
+                .background(shades[0])
                 .border(2.dp, CspColors.Bg, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                "+${maxOf(0, count - 3)}",
-                style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink2),
-            )
+        )
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (joined) {
+                AvatarCircle("Moi", isYou = true, modifier = Modifier.zIndex(6f))
+            }
+            repeat(greyFaces) { i ->
+                Box(
+                    modifier = Modifier
+                        .offset(x = if (i > 0 || joined) (-12).dp else 0.dp)
+                        .zIndex((greySlots - i).toFloat())
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(shades[i.coerceAtMost(shades.lastIndex)])
+                        .border(2.dp, CspColors.Bg, CircleShape),
+                )
+            }
+            if (showOverflow) {
+                Box(
+                    modifier = Modifier
+                        .offset(x = (-12).dp)
+                        .zIndex(0f)
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(shades.last())
+                        .border(2.dp, CspColors.Bg, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("+$overflowN", style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White))
+                }
+            }
         }
     }
 }
@@ -311,15 +333,22 @@ private fun CommentItem(comment: Comment) {
 
 @Composable
 fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
+    val vm = viewModel(key = event.id) { EventDetailViewModel(event.id) }
+    val participants by vm.participants.collectAsStateWithLifecycle()
+    val isJoined by vm.isJoined.collectAsStateWithLifecycle()
+    val isLoggedIn by vm.isLoggedIn.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+
     val cancelled = event.status == EventStatus.CANCELLED
-    var joined by remember { mutableStateOf(false) }
+    var showLoginDialog by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var commentText by remember { mutableStateOf("") }
     var comments by remember { mutableStateOf(MOCK_COMMENTS) }
 
-    val participantCount = event.participants + if (joined) 1 else 0
+    val participantCount = participants.size
     val dateLong = "${event.weekday} ${event.day} ${event.month}"
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize().background(CspColors.Bg)) {
         // Scrollable body
         Column(
@@ -415,7 +444,7 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                     style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Muted),
                 )
                 Spacer(Modifier.height(10.dp))
-                ParticipantAvatars(joined = joined, count = participantCount)
+                ParticipantAvatars(joined = isJoined, count = participantCount)
 
                 // D : Rendez-vous
                 SectionTitle("Rendez-vous")
@@ -532,7 +561,7 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
 
                 Spacer(Modifier.height(12.dp))
             }
-        }
+        } // fin scroll
 
         // ── G : CTA fixe ─────────────────────────────────────
         Column(
@@ -564,11 +593,17 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (joined) CspColors.Surface2 else CspColors.Red)
+                        .background(if (isJoined) CspColors.Surface2 else CspColors.Red)
                         .then(
-                            if (joined) Modifier.border(1.dp, CspColors.Line, RoundedCornerShape(14.dp)) else Modifier
+                            if (isJoined) Modifier.border(1.dp, CspColors.Line, RoundedCornerShape(14.dp)) else Modifier
                         )
-                        .clickable { joined = !joined }
+                        .clickable {
+                            if (isLoggedIn == true) {
+                                scope.launch { vm.toggleParticipation() }
+                            } else {
+                                showLoginDialog = true
+                            }
+                        }
                         .padding(15.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -576,7 +611,7 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(9.dp),
                     ) {
-                        if (joined) {
+                        if (isJoined) {
                             IconCheck(CspColors.Green, Modifier.size(19.dp))
                             Text(
                                 "Annuler ma participation",
@@ -592,5 +627,61 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                 }
             }
         }
+    } // fin Column principal
+
+    // ── Dialog : connexion requise ────────────────────────────
+    if (showLoginDialog) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.65f))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                ) { showLoginDialog = false },
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 28.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(CspColors.Surface2)
+                    .border(1.dp, CspColors.Line, RoundedCornerShape(20.dp))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                    ) { }
+                    .padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Venez comme vous êtes 😊",
+                    style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+                )
+                Text(
+                    "Vous devez être connecté.e pour signaler votre présence à l'évènement. " +
+                        "Si vous n'êtes pas encore adhérent.e au club, n'hésitez pas à venir à l'une de nos sorties " +
+                        "sans prévenir, vous êtes bienvenu.e !",
+                    style = TextStyle(fontSize = 14.sp, color = CspColors.Ink2, lineHeight = (14 * 1.6).sp),
+                )
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CspColors.Red)
+                        .clickable { showLoginDialog = false }
+                        .padding(14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Compris !",
+                        style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White),
+                    )
+                }
+            }
+        }
     }
+    } // fin Box racine
 }

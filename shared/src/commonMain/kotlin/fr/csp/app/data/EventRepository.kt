@@ -49,7 +49,9 @@ private fun DocumentSnapshot.toClubEvent(): ClubEvent? {
         val timeStr = get<String?>("time") ?: ""
         val statusStr = get<String?>("status") ?: "OPEN"
         val featured = get<Boolean?>("featured") ?: false
-        val participants = get<Long?>("participants_count")?.toInt() ?: 0
+        val participantsArray = get<List<String>?>("participants") ?: emptyList()
+        val participants = if (participantsArray.isNotEmpty()) participantsArray.size
+                          else get<Long?>("participants_count")?.toInt() ?: 0
         val localDate = parseDateFr(dateStr)
         ClubEvent(
             id = id,

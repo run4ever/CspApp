@@ -272,7 +272,7 @@ fun NextRideHero(event: ClubEvent, onClick: () -> Unit) {
             Spacer(Modifier.height(14.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    AvatarStack(count = 3)
+                    AvatarStack(count = event.participants)
                     Spacer(Modifier.width(10.dp))
                     Text("${event.participants} participants", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CspColors.CyanInk))
                 }
@@ -294,17 +294,33 @@ fun NextRideHero(event: ClubEvent, onClick: () -> Unit) {
 
 @Composable
 private fun AvatarStack(count: Int) {
-    val avatarColors = listOf(Color(0xFFB0BEC5), Color(0xFF90A4AE), Color(0xFF78909C))
+    val shades = listOf(Color(0xFFCFD8DC), Color(0xFFB0BEC5), Color(0xFF90A4AE), Color(0xFF78909C), Color(0xFF607D8B))
+    val showOverflow = count > 5
+    val faceCount = if (showOverflow) 4 else count.coerceAtLeast(1)
+    val overflowN = count - 4
     Row {
-        repeat(count.coerceAtMost(avatarColors.size)) { i ->
+        repeat(faceCount) { i ->
             Box(
                 modifier = Modifier
-                    .offset(x = (-10 * i).dp)
+                    .offset(x = (-8 * i).dp)
                     .size(28.dp)
                     .clip(CircleShape)
-                    .background(avatarColors[i])
+                    .background(shades[i.coerceAtMost(shades.lastIndex)])
                     .border(2.dp, CspColors.Blue, CircleShape),
             )
+        }
+        if (showOverflow) {
+            Box(
+                modifier = Modifier
+                    .offset(x = (-8 * faceCount).dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(shades.last())
+                    .border(2.dp, CspColors.Blue, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("+$overflowN", style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White))
+            }
         }
     }
 }
