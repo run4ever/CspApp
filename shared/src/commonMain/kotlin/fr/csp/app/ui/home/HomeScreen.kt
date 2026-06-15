@@ -172,7 +172,8 @@ private fun AvatarStack(count: Int) {
 fun AgendaItem(event: ClubEvent, isLast: Boolean, onClick: () -> Unit) {
     val cancelled = event.status == EventStatus.CANCELLED
     Row(
-        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
+            .then(if (!cancelled) Modifier.clickable(onClick = onClick) else Modifier),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         // Colonne date
@@ -296,7 +297,7 @@ fun BottomNav(activeTab: Int = 0, onTabSelected: (Int) -> Unit = {}) {
 // ── Écran complet ─────────────────────────────────────────────
 
 @Composable
-fun HomeScreen(onEventClick: (String) -> Unit = {}) {
+fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}) {
     val vm = viewModel { HomeViewModel() }
     val events by vm.events.collectAsStateWithLifecycle()
     val today = remember { currentDateIso() }
@@ -334,12 +335,12 @@ fun HomeScreen(onEventClick: (String) -> Unit = {}) {
                         AgendaItem(
                             event = event,
                             isLast = index == cancelledBefore.lastIndex && featured == null,
-                            onClick = { onEventClick(event.id) },
+                            onClick = { onEventClick(event) },
                         )
                     }
                     if (featured != null) {
                         if (cancelledBefore.isNotEmpty()) Spacer(Modifier.height(16.dp))
-                        NextRideHero(event = featured, onClick = { onEventClick(featured.id) })
+                        NextRideHero(event = featured, onClick = { onEventClick(featured) })
                     }
                     if (afterFeatured.isNotEmpty()) {
                         Spacer(Modifier.height(24.dp))
@@ -352,7 +353,7 @@ fun HomeScreen(onEventClick: (String) -> Unit = {}) {
                             AgendaItem(
                                 event = event,
                                 isLast = index == afterFeatured.lastIndex,
-                                onClick = { onEventClick(event.id) },
+                                onClick = { onEventClick(event) },
                             )
                         }
                     }

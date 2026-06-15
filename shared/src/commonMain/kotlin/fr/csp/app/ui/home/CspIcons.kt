@@ -125,3 +125,126 @@ fun IconUser(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.
         drawPath(arc, color = tint, style = st)
     }
 }
+
+@Composable
+fun IconBack(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 2.4f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val path = Path().apply {
+            moveTo(s(15f), s(4f))
+            lineTo(s(7f), s(12f))
+            lineTo(s(15f), s(20f))
+        }
+        drawPath(path, color = tint, style = st)
+    }
+}
+
+@Composable
+fun IconCalPlus(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val base = Path().apply {
+            addRoundRect(
+                androidx.compose.ui.geometry.RoundRect(
+                    rect = Rect(Offset(s(3f), s(4.5f)), Size(s(18f), s(16.5f))),
+                    radiusX = s(2.5f), radiusY = s(2.5f),
+                )
+            )
+        }
+        drawPath(base, tint, style = st)
+        drawLine(tint, Offset(s(3f), s(9.5f)), Offset(s(21f), s(9.5f)), strokeWidth = st.width, cap = StrokeCap.Round)
+        drawLine(tint, Offset(s(8f), s(2.5f)), Offset(s(8f), s(6.5f)), strokeWidth = st.width, cap = StrokeCap.Round)
+        drawLine(tint, Offset(s(16f), s(2.5f)), Offset(s(16f), s(6.5f)), strokeWidth = st.width, cap = StrokeCap.Round)
+        drawLine(tint, Offset(s(17f), s(15f)), Offset(s(17f), s(21f)), strokeWidth = st.width, cap = StrokeCap.Round)
+        drawLine(tint, Offset(s(14f), s(18f)), Offset(s(20f), s(18f)), strokeWidth = st.width, cap = StrokeCap.Round)
+    }
+}
+
+@Composable
+fun IconPin(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val path = Path().apply {
+            moveTo(s(12f), s(21.5f))
+            cubicTo(s(12f), s(21.5f), s(19f), s(15.3f), s(19f), s(10.1f))
+            arcTo(Rect(Offset(s(5f), s(3.1f)), Size(s(14f), s(14f))), 0f, -180f, false)
+            cubicTo(s(5f), s(15.3f), s(12f), s(21.5f), s(12f), s(21.5f))
+            close()
+        }
+        drawPath(path, tint, style = st)
+        drawCircle(tint, radius = s(2.6f), center = Offset(s(12f), s(9.8f)), style = st)
+    }
+}
+
+@Composable
+fun IconMap(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val path = Path().apply {
+            moveTo(s(9f), s(4f))
+            lineTo(s(3.5f), s(6.2f))
+            lineTo(s(3.5f), s(19.5f))
+            lineTo(s(9f), s(17.3f))
+            lineTo(s(15f), s(19.5f))
+            lineTo(s(20.5f), s(17.3f))
+            lineTo(s(20.5f), s(4f))
+            lineTo(s(15f), s(6.2f))
+            close()
+        }
+        drawPath(path, tint, style = st)
+        drawLine(tint, Offset(s(9f), s(4f)), Offset(s(9f), s(17.3f)), strokeWidth = st.width, cap = StrokeCap.Round)
+        drawLine(tint, Offset(s(15f), s(6.2f)), Offset(s(15f), s(19.5f)), strokeWidth = st.width, cap = StrokeCap.Round)
+    }
+}
+
+@Composable
+fun IconHeart(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val path = Path().apply {
+            moveTo(s(12f), s(20.5f))
+            cubicTo(s(4f), s(15.5f), s(3.5f), s(9f), s(7.5f), s(6.5f))
+            cubicTo(s(9.5f), s(5.2f), s(11f), s(5.8f), s(12f), s(7.5f))
+            cubicTo(s(13f), s(5.8f), s(14.5f), s(5.2f), s(16.5f), s(6.5f))
+            cubicTo(s(20.5f), s(9f), s(20f), s(15.5f), s(12f), s(20.5f))
+            close()
+        }
+        drawPath(path, tint, style = st)
+    }
+}
+
+@Composable
+fun IconCheck(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 2.4f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val path = Path().apply {
+            moveTo(s(5f), s(12.5f))
+            lineTo(s(10f), s(17f))
+            lineTo(s(19f), s(7f))
+        }
+        drawPath(path, tint, style = st)
+    }
+}
+
+@Composable
+fun IconSend(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        drawLine(tint, Offset(s(12f), s(15.5f)), Offset(s(12f), s(4f)), strokeWidth = st.width, cap = StrokeCap.Round)
+        val head = Path().apply {
+            moveTo(s(8f), s(7.5f))
+            lineTo(s(12f), s(3.5f))
+            lineTo(s(16f), s(7.5f))
+        }
+        drawPath(head, tint, style = st)
+        val tray = Path().apply {
+            moveTo(s(5f), s(13f))
+            lineTo(s(5f), s(18.5f))
+            arcTo(Rect(Offset(s(5f), s(16.5f)), Size(s(4f), s(4f))), 180f, -90f, false)
+            lineTo(s(17f), s(20.5f))
+            arcTo(Rect(Offset(s(15f), s(16.5f)), Size(s(4f), s(4f))), 90f, -90f, false)
+            lineTo(s(19f), s(13f))
+        }
+        drawPath(tray, tint, style = st)
+    }
+}
