@@ -12,6 +12,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +33,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import fr.csp.app.ui.profile.ProfileScreen
 import fr.csp.app.ui.theme.CspColors
 
 // ── Salutation ────────────────────────────────────────────────
@@ -251,7 +256,7 @@ private fun CrossMarker(modifier: Modifier = Modifier) {
 // ── Barre de navigation ───────────────────────────────────────
 
 @Composable
-fun BottomNav(activeTab: Int = 0) {
+fun BottomNav(activeTab: Int = 0, onTabSelected: (Int) -> Unit = {}) {
     data class Tab(val label: String, val index: Int, val icon: @Composable (Color, Modifier) -> Unit)
     val tabs = listOf(
         Tab("Accueil", 0) { c, m -> IconHome(c, m) },
@@ -269,7 +274,7 @@ fun BottomNav(activeTab: Int = 0) {
             val active = tab.index == activeTab
             val tint = if (active) CspColors.Red else CspColors.Muted2
             Column(
-                modifier = Modifier.weight(1f).clickable { }.padding(top = 10.dp, bottom = 8.dp),
+                modifier = Modifier.weight(1f).clickable { onTabSelected(tab.index) }.padding(top = 10.dp, bottom = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
@@ -289,6 +294,7 @@ fun BottomNav(activeTab: Int = 0) {
 fun HomeScreen(onEventClick: (String) -> Unit = {}) {
     val featured = sampleEvents.first { it.featured }
     val agenda = sampleEvents.filter { !it.featured }
+    var selectedTab by remember { mutableStateOf(0) }
 
     Column(
         modifier = Modifier
@@ -296,24 +302,29 @@ fun HomeScreen(onEventClick: (String) -> Unit = {}) {
             .background(CspColors.Bg)
             .systemBarsPadding(),
     ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(top = 16.dp, start = 18.dp, end = 18.dp, bottom = 22.dp),
-        ) {
-            Greeting()
-            NextRideHero(event = featured, onClick = { onEventClick(featured.id) })
-            Spacer(Modifier.height(24.dp))
-            Text(
-                "Sorties suivantes",
-                style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
-                modifier = Modifier.padding(bottom = 16.dp),
-            )
-            agenda.forEachIndexed { index, event ->
-                AgendaItem(event = event, isLast = index == agenda.lastIndex, onClick = { onEventClick(event.id) })
+        Box(modifier = Modifier.weight(1f)) {
+            when (selectedTab) {
+                0 -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(top = 16.dp, start = 18.dp, end = 18.dp, bottom = 22.dp),
+                ) {
+                    Greeting()
+                    NextRideHero(event = featured, onClick = { onEventClick(featured.id) })
+                    Spacer(Modifier.height(24.dp))
+                    Text(
+                        "Sorties suivantes",
+                        style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+                        modifier = Modifier.padding(bottom = 16.dp),
+                    )
+                    agenda.forEachIndexed { index, event ->
+                        AgendaItem(event = event, isLast = index == agenda.lastIndex, onClick = { onEventClick(event.id) })
+                    }
+                }
+                2 -> ProfileScreen()
             }
         }
-        BottomNav(activeTab = 0)
+        BottomNav(activeTab = selectedTab, onTabSelected = { selectedTab = it })
     }
 }
