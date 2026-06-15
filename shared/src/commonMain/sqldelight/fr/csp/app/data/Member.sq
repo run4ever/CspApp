@@ -1,0 +1,27 @@
+CREATE TABLE member (
+    id TEXT NOT NULL PRIMARY KEY,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT,
+    avatar_url TEXT,
+    license_number TEXT,
+    role TEXT NOT NULL DEFAULT 'member',
+    joined_at INTEGER NOT NULL,
+    synced_at INTEGER NOT NULL
+);
+
+selectAll:
+SELECT * FROM member ORDER BY last_name ASC;
+
+selectById:
+SELECT * FROM member WHERE id = ?;
+
+upsert:
+INSERT OR REPLACE INTO member VALUES ?;
+
+deleteById:
+DELETE FROM member WHERE id = ?;
+
+deleteAll:
+DELETE FROM member;

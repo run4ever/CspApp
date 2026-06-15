@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "915820195988",
+    "project_id": "csp-demo-86791",
+    "storage_bucket": "csp-demo-86791.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:915820195988:android:009600a51a1c3cde3a0481",
+        "android_client_info": {
+          "package_name": "fr.csp.demo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7BOvt-YQpxzaEkKB4cyBDvAfam9px9oU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

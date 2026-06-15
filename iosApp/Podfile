@@ -1,0 +1,14 @@
+# CocoaPods au niveau de l'app iOS : sert uniquement à linker les frameworks natifs
+# Firebase, dont les klibs pré-compilés de GitLive (firebase-auth, firebase-firestore)
+# ont besoin au link.
+# Le framework Kotlin "Shared" reste intégré comme avant (build phase Xcode), pas via Pod.
+#
+# Après modification : `cd iosApp && pod install`, puis ouvrir iosApp.xcworkspace (PAS .xcodeproj).
+platform :ios, '18.2'
+
+target 'iosApp' do
+  use_frameworks!
+
+  pod 'FirebaseAuth'
+  pod 'FirebaseFirestore'
+end
