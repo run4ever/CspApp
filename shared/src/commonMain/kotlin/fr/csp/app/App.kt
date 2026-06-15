@@ -14,9 +14,8 @@ import fr.csp.app.ui.home.HomeScreen
 fun App(driverFactory: DatabaseDriverFactory) {
     var selectedEvent by remember { mutableStateOf<ClubEvent?>(null) }
 
-    val current = selectedEvent
-    if (current != null) {
-        EventDetailScreen(event = current, onBack = { selectedEvent = null })
+    if (selectedEvent != null) {
+        EventDetailScreen(event = selectedEvent!!, onBack = { selectedEvent = null })
     } else {
         HomeScreen(onEventClick = { event -> selectedEvent = event })
     }

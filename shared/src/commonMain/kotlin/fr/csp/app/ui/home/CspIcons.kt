@@ -227,6 +227,36 @@ fun IconCheck(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 2
 }
 
 @Composable
+fun IconX(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 2.4f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        drawLine(tint, Offset(s(6f), s(6f)), Offset(s(18f), s(18f)), strokeWidth = st.width, cap = st.cap)
+        drawLine(tint, Offset(s(18f), s(6f)), Offset(s(6f), s(18f)), strokeWidth = st.width, cap = st.cap)
+    }
+}
+
+@Composable
+fun IconBell(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val body = Path().apply {
+            moveTo(s(18f), s(8.5f))
+            arcTo(Rect(Offset(s(6f), s(2.5f)), Size(s(12f), s(12f))), 0f, -180f, false)
+            cubicTo(s(6f), s(14.5f), s(3.5f), s(16f), s(3.5f), s(16f))
+            lineTo(s(20.5f), s(16f))
+            cubicTo(s(20.5f), s(16f), s(18f), s(14.5f), s(18f), s(8.5f))
+            close()
+        }
+        drawPath(body, tint, style = st)
+        val clapper = Path().apply {
+            moveTo(s(10.2f), s(20f))
+            cubicTo(s(10.2f), s(21.8f), s(13.8f), s(21.8f), s(13.8f), s(20f))
+        }
+        drawPath(clapper, tint, style = st)
+    }
+}
+
+@Composable
 fun IconSend(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
     Canvas(modifier = modifier) {
         val st = iconStroke(strokeWidth)

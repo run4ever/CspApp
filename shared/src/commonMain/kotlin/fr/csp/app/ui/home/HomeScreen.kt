@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -33,28 +35,169 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.HorizontalDivider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import fr.csp.app.ui.admin.AdminValidationScreen
+import fr.csp.app.ui.auth.AuthScreen
+import fr.csp.app.ui.auth.AuthViewModel
 import fr.csp.app.ui.profile.ProfileScreen
 import fr.csp.app.ui.theme.CspColors
 
+// ── Bannières ─────────────────────────────────────────────────
+
+@Composable
+private fun SignupSuccessBanner() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(CspColors.Green.copy(alpha = 0.12f))
+            .border(1.dp, CspColors.Green.copy(alpha = 0.28f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        IconCheck(tint = CspColors.Green, modifier = Modifier.size(17.dp))
+        Text(
+            "Votre demande d'inscription a bien été transmise.",
+            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Green),
+        )
+    }
+}
+
+@Composable
+private fun AdminPendingBanner(count: Int, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(CspColors.Blue.copy(alpha = 0.12f))
+            .border(1.dp, CspColors.Blue.copy(alpha = 0.28f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        IconBell(tint = CspColors.Blue, modifier = Modifier.size(17.dp))
+        Text(
+            "$count compte${if (count > 1) "s" else ""} en attente de validation.",
+            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Blue),
+            modifier = Modifier.weight(1f),
+        )
+        IconChevronRight(tint = CspColors.Blue, modifier = Modifier.size(14.dp))
+    }
+}
 
 // ── Salutation ────────────────────────────────────────────────
 
 @Composable
-fun Greeting() {
+fun Greeting(prenom: String? = null, nom: String? = null, onAvatarClick: () -> Unit = {}) {
     val hour = currentHour()
     val salut = if (hour >= 16) "Bonsoir" else "Bonjour"
-    Column(modifier = Modifier.padding(bottom = 18.dp)) {
+    val greeting = if (prenom.isNullOrBlank()) salut else "$salut, $prenom !"
+    val isLoggedIn = !prenom.isNullOrBlank() || !nom.isNullOrBlank()
+    val initials = if (isLoggedIn) {
+        "${prenom?.firstOrNull() ?: ""}${nom?.firstOrNull() ?: ""}".uppercase()
+    } else {
+        "XY"
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(50.dp)
+                .clip(CircleShape)
+                .background(if (isLoggedIn) CspColors.Blue else CspColors.Surface2)
+                .border(1.dp, if (isLoggedIn) CspColors.Blue else CspColors.Line, CircleShape)
+                .clickable(onClick = onAvatarClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                initials,
+                style = TextStyle(
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = if (isLoggedIn) CspColors.CyanInk else CspColors.Muted,
+                ),
+            )
+        }
+        Column {
+            Text(
+                text = greeting,
+                style = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Black, color = CspColors.Ink, lineHeight = (28 * 1.02).sp),
+            )
+            Text(
+                text = "Prêt·e à rouler ?",
+                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium, color = CspColors.Muted),
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
+// ── Profil utilisateur ────────────────────────────────────────
+
+@Composable
+private fun ProfileRow(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            text = salut,
-            style = TextStyle(fontSize = 34.sp, fontWeight = FontWeight.Black, color = CspColors.Ink, lineHeight = (34 * 1.02).sp),
+            label,
+            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CspColors.Muted),
         )
         Text(
-            text = "Prêt·e à rouler ?",
-            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = CspColors.Muted),
-            modifier = Modifier.padding(top = 6.dp),
+            value.ifEmpty { "—" },
+            style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Ink),
         )
+    }
+}
+
+@Composable
+private fun UserProfileTab(user: UserDoc, onSignOut: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CspColors.Bg)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        Text(
+            "Mon profil",
+            style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(CspColors.Surface)
+                .border(1.dp, CspColors.Line2, RoundedCornerShape(16.dp))
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            ProfileRow(label = "Prénom", value = user.prenom)
+            HorizontalDivider(color = CspColors.Line2)
+            ProfileRow(label = "Nom", value = user.nom)
+            HorizontalDivider(color = CspColors.Line2)
+            ProfileRow(label = "Date de naissance", value = user.dateNaissance)
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .border(1.dp, CspColors.Red.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                .clickable(onClick = onSignOut)
+                .padding(vertical = 15.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "Me déconnecter",
+                style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CspColors.Red),
+            )
+        }
     }
 }
 
@@ -300,6 +443,13 @@ fun BottomNav(activeTab: Int = 0, onTabSelected: (Int) -> Unit = {}) {
 fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}) {
     val vm = viewModel { HomeViewModel() }
     val events by vm.events.collectAsStateWithLifecycle()
+    val userDoc by vm.userDoc.collectAsStateWithLifecycle()
+    val isAdmin by vm.isAdmin.collectAsStateWithLifecycle()
+    val pendingCount by vm.pendingCount.collectAsStateWithLifecycle()
+    val authVm = viewModel { AuthViewModel() }
+    val scope = rememberCoroutineScope()
+    var showSignupBanner by remember { mutableStateOf(false) }
+    var showAdminValidation by remember { mutableStateOf(false) }
     val today = remember { currentDateIso() }
     val future = remember(events, today) {
         events.filter { it.dateSort.isEmpty() || it.dateSort >= today }
@@ -323,14 +473,28 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}) {
             .systemBarsPadding(),
     ) {
         Box(modifier = Modifier.weight(1f)) {
-            when (selectedTab) {
+            if (showAdminValidation) {
+                AdminValidationScreen(onBack = { showAdminValidation = false })
+            } else when (selectedTab) {
                 0 -> Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                         .padding(top = 16.dp, start = 18.dp, end = 18.dp, bottom = 22.dp),
                 ) {
-                    Greeting()
+                    if (showSignupBanner) {
+                        SignupSuccessBanner()
+                        Spacer(Modifier.height(16.dp))
+                    }
+                    if (isAdmin && pendingCount > 0) {
+                        AdminPendingBanner(count = pendingCount, onClick = { showAdminValidation = true })
+                        Spacer(Modifier.height(16.dp))
+                    }
+                    Greeting(
+                        prenom = userDoc?.prenom,
+                        nom = userDoc?.nom,
+                        onAvatarClick = { selectedTab = 2 },
+                    )
                     cancelledBefore.forEachIndexed { index, event ->
                         AgendaItem(
                             event = event,
@@ -359,6 +523,15 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}) {
                     }
                 }
                 1 -> ProfileScreen()
+                2 -> if (userDoc != null && userDoc!!.status == "VALIDATED") {
+                    UserProfileTab(user = userDoc!!, onSignOut = { scope.launch { authVm.signOut() } })
+                } else {
+                    AuthScreen(
+                        vm = authVm,
+                        onLoginSuccess = { selectedTab = 0 },
+                        onSignupSuccess = { showSignupBanner = true; selectedTab = 0 },
+                    )
+                }
             }
         }
         BottomNav(activeTab = selectedTab, onTabSelected = { selectedTab = it })
