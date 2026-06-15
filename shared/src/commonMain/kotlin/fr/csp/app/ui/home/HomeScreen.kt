@@ -33,8 +33,11 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import fr.csp.app.ui.profile.ProfileScreen
 import fr.csp.app.ui.theme.CspColors
+
 
 // ── Salutation ────────────────────────────────────────────────
 
@@ -82,7 +85,7 @@ fun NextRideHero(event: ClubEvent, onClick: () -> Unit) {
                     )
                     drawText(csp, topLeft = Offset(size.width - csp.size.width + 8.dp.toPx(), (-16).dp.toPx()))
                 }
-                .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 10.dp),
+                .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 20.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -128,7 +131,7 @@ fun NextRideHero(event: ClubEvent, onClick: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AvatarStack(count = 3)
                     Spacer(Modifier.width(10.dp))
-                    Text("${event.participants} inscrits", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CspColors.CyanInk))
+                    Text("${event.participants} participants", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CspColors.CyanInk))
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -233,11 +236,13 @@ fun AgendaItem(event: ClubEvent, isLast: Boolean, onClick: () -> Unit) {
                         ),
                     )
                     if (cancelled) {
-                        Text("· Annulé", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.Red))
+                        Text("· Annulée", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.Red))
                     }
                 }
             }
-            IconChevronRight(tint = CspColors.Muted2, modifier = Modifier.size(17.dp))
+            if (!cancelled) {
+                IconChevronRight(tint = CspColors.Muted2, modifier = Modifier.size(17.dp))
+            }
         }
     }
 }
@@ -292,8 +297,22 @@ fun BottomNav(activeTab: Int = 0, onTabSelected: (Int) -> Unit = {}) {
 
 @Composable
 fun HomeScreen(onEventClick: (String) -> Unit = {}) {
-    val featured = sampleEvents.first { it.featured }
-    val agenda = sampleEvents.filter { !it.featured }
+    val vm = viewModel { HomeViewModel() }
+    val events by vm.events.collectAsStateWithLifecycle()
+    val today = remember { currentDateIso() }
+    val future = remember(events, today) {
+        events.filter { it.dateSort.isEmpty() || it.dateSort >= today }
+    }
+    val featuredIndex = remember(future) {
+        future.indexOfFirst { it.status != EventStatus.CANCELLED }
+    }
+    val featured = remember(future, featuredIndex) { future.getOrNull(featuredIndex) }
+    val cancelledBefore = remember(future, featuredIndex) {
+        if (featuredIndex > 0) future.take(featuredIndex) else emptyList()
+    }
+    val afterFeatured = remember(future, featuredIndex) {
+        if (featuredIndex >= 0) future.drop(featuredIndex + 1) else future
+    }
     var selectedTab by remember { mutableStateOf(0) }
 
     Column(
@@ -311,15 +330,31 @@ fun HomeScreen(onEventClick: (String) -> Unit = {}) {
                         .padding(top = 16.dp, start = 18.dp, end = 18.dp, bottom = 22.dp),
                 ) {
                     Greeting()
-                    NextRideHero(event = featured, onClick = { onEventClick(featured.id) })
-                    Spacer(Modifier.height(24.dp))
-                    Text(
-                        "Sorties suivantes",
-                        style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
-                        modifier = Modifier.padding(bottom = 16.dp),
-                    )
-                    agenda.forEachIndexed { index, event ->
-                        AgendaItem(event = event, isLast = index == agenda.lastIndex, onClick = { onEventClick(event.id) })
+                    cancelledBefore.forEachIndexed { index, event ->
+                        AgendaItem(
+                            event = event,
+                            isLast = index == cancelledBefore.lastIndex && featured == null,
+                            onClick = { onEventClick(event.id) },
+                        )
+                    }
+                    if (featured != null) {
+                        if (cancelledBefore.isNotEmpty()) Spacer(Modifier.height(16.dp))
+                        NextRideHero(event = featured, onClick = { onEventClick(featured.id) })
+                    }
+                    if (afterFeatured.isNotEmpty()) {
+                        Spacer(Modifier.height(24.dp))
+                        Text(
+                            "Sorties suivantes",
+                            style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+                            modifier = Modifier.padding(bottom = 16.dp),
+                        )
+                        afterFeatured.forEachIndexed { index, event ->
+                            AgendaItem(
+                                event = event,
+                                isLast = index == afterFeatured.lastIndex,
+                                onClick = { onEventClick(event.id) },
+                            )
+                        }
                     }
                 }
                 2 -> ProfileScreen()
