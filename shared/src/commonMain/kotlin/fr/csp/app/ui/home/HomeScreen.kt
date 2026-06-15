@@ -358,7 +358,7 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}) {
                         }
                     }
                 }
-                2 -> ProfileScreen()
+                1 -> ProfileScreen()
             }
         }
         BottomNav(activeTab = selectedTab, onTabSelected = { selectedTab = it })
