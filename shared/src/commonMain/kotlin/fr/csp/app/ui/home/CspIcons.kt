@@ -257,6 +257,26 @@ fun IconBell(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.
 }
 
 @Composable
+fun IconPencil(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        // Corps du crayon (rectangle incliné)
+        val body = Path().apply {
+            moveTo(s(16f), s(3f))
+            lineTo(s(21f), s(8f))
+            lineTo(s(8f), s(21f))
+            lineTo(s(3f), s(21f))
+            lineTo(s(3f), s(16f))
+            close()
+        }
+        drawPath(body, tint, style = st)
+        // Ligne de détail
+        drawLine(tint, Offset(s(14.5f), s(4.5f)), Offset(s(19.5f), s(9.5f)),
+            strokeWidth = st.width, cap = StrokeCap.Round)
+    }
+}
+
+@Composable
 fun IconSend(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
     Canvas(modifier = modifier) {
         // Avion en papier : corps plein + diagonale centrale

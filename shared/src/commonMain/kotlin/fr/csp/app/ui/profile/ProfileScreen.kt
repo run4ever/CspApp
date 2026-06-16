@@ -39,14 +39,33 @@ import fr.csp.app.data.LocationSuggestion
 import fr.csp.app.data.NominatimService
 import fr.csp.app.ui.frenchCalendarLocale
 import fr.csp.app.ui.event.MapPicker
+import fr.csp.app.ui.home.ClubEvent
+import fr.csp.app.ui.home.IconBack
 import fr.csp.app.ui.home.IconChevronRight
 import fr.csp.app.ui.home.IconPin
 import fr.csp.app.ui.theme.CspColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.atStartOfDayIn
 
 private const val DEFAULT_LAT = 48.84470902674985
 private const val DEFAULT_LON = 2.4364809007277324
+
+private fun dateSortToFr(dateSort: String): String {
+    val parts = dateSort.split("-")
+    return if (parts.size == 3) "${parts[2]}/${parts[1]}/${parts[0]}" else ""
+}
+
+private fun dateFrToMillis(dateStr: String): Long? = try {
+    val (d, m, y) = dateStr.split("/")
+    LocalDate(y.toInt(), m.toInt(), d.toInt()).atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()
+} catch (_: Exception) { null }
+
+private fun parseTimeFr(timeStr: String): Pair<Int, Int>? = try {
+    val (h, m) = timeStr.split("h")
+    Pair(h.toInt(), m.toInt())
+} catch (_: Exception) { null }
 
 private val EVENT_TYPES = listOf(
     "Sortie hebdo CSP",
@@ -74,28 +93,61 @@ fun ProfileScreen() {
     }
 }
 
+@Composable
+fun EditEventScreen(event: ClubEvent, onDone: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CspColors.Bg)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(modifier = Modifier.clickable(onClick = onDone).padding(4.dp)) {
+                IconBack(tint = CspColors.Ink, modifier = Modifier.size(22.dp))
+            }
+            Text(
+                "Modifier l'événement",
+                style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+            )
+        }
+        CreateEventForm(initialEvent = event, onDone = onDone)
+        Spacer(Modifier.height(40.dp))
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CreateEventForm() {
-    var name by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf("") }
-    var time by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var locationLat by remember { mutableStateOf<Double?>(null) }
-    var locationLon by remember { mutableStateOf<Double?>(null) }
+private fun CreateEventForm(initialEvent: ClubEvent? = null, onDone: (() -> Unit)? = null) {
+    val isEditing = initialEvent != null
+    val initDate = remember { initialEvent?.let { dateSortToFr(it.dateSort) } ?: "" }
+    val initTime = remember { initialEvent?.time?.let { parseTimeFr(it) } }
+
+    var name by remember { mutableStateOf(initialEvent?.title ?: "") }
+    var type by remember { mutableStateOf(initialEvent?.type ?: "") }
+    var date by remember { mutableStateOf(initDate) }
+    var time by remember { mutableStateOf(initialEvent?.time ?: "") }
+    var location by remember { mutableStateOf(initialEvent?.location ?: "") }
+    var locationLat by remember { mutableStateOf(initialEvent?.lat) }
+    var locationLon by remember { mutableStateOf(initialEvent?.lon) }
     var mapCenterKey by remember { mutableStateOf(0) }
     var isLoading by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
-    var description by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf(initialEvent?.description ?: "") }
     var savingFavorite by remember { mutableStateOf(false) }
     var favoriteName by remember { mutableStateOf("") }
     var favoriteSaved by remember { mutableStateOf(false) }
 
     var showDatePicker by remember { mutableStateOf(false) }
-    val datePickerState = remember { DatePickerState(locale = frenchCalendarLocale()) }
+    val datePickerState = remember { DatePickerState(locale = frenchCalendarLocale(), initialSelectedDateMillis = dateFrToMillis(initDate)) }
     var showTimePicker by remember { mutableStateOf(false) }
-    val timePickerState = rememberTimePickerState(initialHour = 8, initialMinute = 0, is24Hour = true)
+    val timePickerState = rememberTimePickerState(initialHour = initTime?.first ?: 8, initialMinute = initTime?.second ?: 0, is24Hour = true)
 
     val scope = rememberCoroutineScope()
     val repository = remember { EventRepository() }
@@ -369,21 +421,37 @@ private fun CreateEventForm() {
                         isLoading = true
                         feedback = null
                         try {
-                            repository.createEvent(
-                                title = name,
-                                type = type,
-                                date = date,
-                                time = time,
-                                location = location,
-                                lat = locationLat,
-                                lon = locationLon,
-                                description = description,
-                            )
-                            feedback = "✓ Événement créé"
-                            name = ""; type = ""; date = ""; time = ""
-                            location = ""; locationLat = null; locationLon = null
-                            description = ""
-                            mapCenterKey++
+                            if (isEditing && initialEvent != null) {
+                                repository.updateEvent(
+                                    id = initialEvent.id,
+                                    title = name,
+                                    type = type,
+                                    date = date,
+                                    time = time,
+                                    location = location,
+                                    lat = locationLat,
+                                    lon = locationLon,
+                                    description = description,
+                                )
+                                feedback = "✓ Événement modifié"
+                                onDone?.invoke()
+                            } else {
+                                repository.createEvent(
+                                    title = name,
+                                    type = type,
+                                    date = date,
+                                    time = time,
+                                    location = location,
+                                    lat = locationLat,
+                                    lon = locationLon,
+                                    description = description,
+                                )
+                                feedback = "✓ Événement créé"
+                                name = ""; type = ""; date = ""; time = ""
+                                location = ""; locationLat = null; locationLon = null
+                                description = ""
+                                mapCenterKey++
+                            }
                         } catch (e: Exception) {
                             feedback = "Erreur : ${e.message}"
                         } finally {
@@ -398,7 +466,7 @@ private fun CreateEventForm() {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), color = CspColors.Ink, strokeWidth = 2.dp)
             } else {
                 Text(
-                    "Créer l'événement",
+                    if (isEditing) "Enregistrer les modifications" else "Créer l'événement",
                     style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.Ink),
                 )
             }

@@ -17,6 +17,7 @@ data class ClubEvent(
     val lat: Double? = null,
     val lon: Double? = null,
     val description: String = "",
+    val type: String = "",
 )
 
 enum class EventStatus { OPEN, CANCELLED, FULL }

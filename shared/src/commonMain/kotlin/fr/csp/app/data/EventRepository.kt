@@ -20,6 +20,32 @@ class EventRepository {
                 .sortedWith(compareBy({ !it.featured }, { it.dateSort }))
         }
 
+    suspend fun updateEvent(
+        id: String,
+        title: String,
+        type: String,
+        date: String,
+        time: String,
+        location: String,
+        lat: Double? = null,
+        lon: Double? = null,
+        description: String = "",
+    ) {
+        db.collection("events").document(id).set(
+            buildMap<String, Any?> {
+                put("title", title)
+                put("type", type)
+                put("date", date)
+                put("time", time)
+                put("location", location)
+                put("description", description)
+                put("lat", lat)
+                put("lon", lon)
+            },
+            merge = true,
+        )
+    }
+
     suspend fun createEvent(
         title: String,
         type: String,
@@ -63,6 +89,7 @@ private fun DocumentSnapshot.toClubEvent(): ClubEvent? {
         val lat = get<Double?>("lat")
         val lon = get<Double?>("lon")
         val description = get<String?>("description") ?: ""
+        val type = get<String?>("type") ?: ""
         ClubEvent(
             id = id,
             title = title,
@@ -84,6 +111,7 @@ private fun DocumentSnapshot.toClubEvent(): ClubEvent? {
             lat = lat,
             lon = lon,
             description = description,
+            type = type,
         )
     } catch (_: Exception) {
         null

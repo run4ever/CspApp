@@ -389,7 +389,7 @@ private fun MarkdownBlock(
 // ── Écran principal ───────────────────────────────────────────
 
 @Composable
-fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
+fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = false, onEdit: (() -> Unit)? = null) {
     val vm = viewModel(key = event.id) { EventDetailViewModel(event.id) }
     val participants by vm.participants.collectAsStateWithLifecycle()
     val isJoined by vm.isJoined.collectAsStateWithLifecycle()
@@ -484,6 +484,19 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                 ) {
                     GlassButton(onClick = onBack) {
                         IconBack(tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                }
+                // Bouton édition admin (verre, haut droite)
+                if (isAdmin && onEdit != null) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .statusBarsPadding()
+                            .padding(end = 14.dp, top = 10.dp),
+                    ) {
+                        GlassButton(onClick = onEdit) {
+                            IconPencil(tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
                     }
                 }
                 // Bannière "Annulé"

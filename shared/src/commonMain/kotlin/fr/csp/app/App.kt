@@ -5,18 +5,40 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import fr.csp.app.data.DatabaseDriverFactory
 import fr.csp.app.ui.event.EventDetailScreen
 import fr.csp.app.ui.home.ClubEvent
 import fr.csp.app.ui.home.HomeScreen
+import fr.csp.app.ui.home.HomeViewModel
+import fr.csp.app.ui.profile.EditEventScreen
 
 @Composable
 fun App(driverFactory: DatabaseDriverFactory) {
-    var selectedEvent by remember { mutableStateOf<ClubEvent?>(null) }
+    val vm = viewModel { HomeViewModel() }
+    val isAdmin by vm.isAdmin.collectAsStateWithLifecycle()
+    val events by vm.events.collectAsStateWithLifecycle()
 
-    if (selectedEvent != null) {
-        EventDetailScreen(event = selectedEvent!!, onBack = { selectedEvent = null })
-    } else {
-        HomeScreen(onEventClick = { event -> selectedEvent = event })
+    var selectedEvent by remember { mutableStateOf<ClubEvent?>(null) }
+    var editingEvent by remember { mutableStateOf<ClubEvent?>(null) }
+
+    // Toujours utiliser la version live de l'événement (mise à jour Firestore en temps réel)
+    val liveEvent = remember(selectedEvent?.id, events) {
+        selectedEvent?.let { sel -> events.find { it.id == sel.id } ?: sel }
+    }
+
+    when {
+        editingEvent != null -> EditEventScreen(
+            event = editingEvent!!,
+            onDone = { editingEvent = null },
+        )
+        liveEvent != null -> EventDetailScreen(
+            event = liveEvent,
+            onBack = { selectedEvent = null },
+            isAdmin = isAdmin,
+            onEdit = { editingEvent = liveEvent },
+        )
+        else -> HomeScreen(onEventClick = { event -> selectedEvent = event })
     }
 }
