@@ -259,22 +259,16 @@ fun IconBell(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.
 @Composable
 fun IconSend(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
     Canvas(modifier = modifier) {
-        val st = iconStroke(strokeWidth)
-        drawLine(tint, Offset(s(12f), s(15.5f)), Offset(s(12f), s(4f)), strokeWidth = st.width, cap = StrokeCap.Round)
-        val head = Path().apply {
-            moveTo(s(8f), s(7.5f))
-            lineTo(s(12f), s(3.5f))
-            lineTo(s(16f), s(7.5f))
+        // Avion en papier : corps plein + diagonale centrale
+        val body = Path().apply {
+            moveTo(s(22f), s(2f))
+            lineTo(s(15f), s(22f))
+            lineTo(s(11f), s(13f))
+            lineTo(s(2f), s(9f))
+            close()
         }
-        drawPath(head, tint, style = st)
-        val tray = Path().apply {
-            moveTo(s(5f), s(13f))
-            lineTo(s(5f), s(18.5f))
-            arcTo(Rect(Offset(s(5f), s(16.5f)), Size(s(4f), s(4f))), 180f, -90f, false)
-            lineTo(s(17f), s(20.5f))
-            arcTo(Rect(Offset(s(15f), s(16.5f)), Size(s(4f), s(4f))), 90f, -90f, false)
-            lineTo(s(19f), s(13f))
-        }
-        drawPath(tray, tint, style = st)
+        drawPath(body, tint)
+        drawLine(tint, Offset(s(22f), s(2f)), Offset(s(11f), s(13f)),
+            strokeWidth = iconStroke(strokeWidth).width, cap = StrokeCap.Round)
     }
 }

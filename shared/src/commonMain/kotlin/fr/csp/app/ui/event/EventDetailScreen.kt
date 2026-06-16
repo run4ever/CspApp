@@ -11,6 +11,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -24,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -34,10 +36,16 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.gitlive.firebase.Firebase
+import dev.gitlive.firebase.auth.auth
+import dev.gitlive.firebase.firestore.firestore
+import fr.csp.app.data.CommentRepository
+import fr.csp.app.data.FirestoreComment
 import fr.csp.app.resources.Res
 import fr.csp.app.resources.logo_csp
 import fr.csp.app.ui.home.*
 import fr.csp.app.ui.theme.CspColors
+import kotlin.time.Clock
 import org.jetbrains.compose.resources.painterResource
 
 // ── Données mockées ───────────────────────────────────────────
@@ -51,12 +59,16 @@ private val MOCK_DESC = listOf(
     "Pensez aux bidons et à un coupe-vent, la météo reste fraîche le matin.",
 )
 
-private data class Comment(val name: String, val time: String, val text: String, val likes: Int = 0)
+private fun relativeTime(epochMillis: Long): String {
+    val diffMin = (Clock.System.now().toEpochMilliseconds() - epochMillis) / 60_000
+    return when {
+        diffMin < 1 -> "À l'instant"
+        diffMin < 60 -> "Il y a ${diffMin} min"
+        diffMin < 1440 -> "Il y a ${diffMin / 60} h"
+        else -> "Il y a ${diffMin / 1440} j"
+    }
+}
 
-private val MOCK_COMMENTS = listOf(
-    Comment("Emma Carena", "Il y a 3 h", "Super, j'avais hâte de voir le programme ! Je passe avec deux amis intéressés par le club.", 2),
-    Comment("Alain Proviste", "Il y a 8 h", "On se retrouve au local comme d'habitude.", 0),
-)
 
 // ── Composants internes ───────────────────────────────────────
 
@@ -292,39 +304,20 @@ private fun MapPlaceholder(label: String) {
 }
 
 @Composable
-private fun CommentItem(comment: Comment) {
+private fun CommentItem(comment: FirestoreComment) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
-        AvatarCircle(initials = nameInitials(comment.name), modifier = Modifier.size(36.dp))
+        AvatarCircle(initials = nameInitials(comment.authorName).ifEmpty { "?" }, modifier = Modifier.size(36.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(comment.name, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink))
+                Text(comment.authorName, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink))
                 Spacer(Modifier.width(8.dp))
-                Text(comment.time, style = TextStyle(fontSize = 12.5.sp, color = CspColors.Muted2))
+                Text(relativeTime(comment.createdAt), style = TextStyle(fontSize = 12.5.sp, color = CspColors.Muted2))
             }
             Spacer(Modifier.height(3.dp))
             Text(comment.text, style = TextStyle(fontSize = 14.sp, color = CspColors.Ink2, lineHeight = (14 * 1.5).sp))
-            Spacer(Modifier.height(7.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    modifier = Modifier.clickable { },
-                ) {
-                    IconHeart(tint = CspColors.Muted, modifier = Modifier.size(14.dp))
-                    Text("${comment.likes}", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Muted))
-                }
-                Text(
-                    "Répondre",
-                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Muted),
-                    modifier = Modifier.clickable { },
-                )
-            }
         }
     }
 }
@@ -339,11 +332,47 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
     val isLoggedIn by vm.isLoggedIn.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
+    val commentRepo = remember { CommentRepository() }
+    val comments by commentRepo.getComments(event.id).collectAsStateWithLifecycle(emptyList())
+    var currentUserName by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        val uid = Firebase.auth.currentUser?.uid ?: return@LaunchedEffect
+        try {
+            val doc = Firebase.firestore.collection("users").document(uid).get()
+            val first = doc.get<String?>("prenom") ?: ""
+            val last = doc.get<String?>("nom") ?: ""
+            currentUserName = "$first $last".trim()
+        } catch (_: Exception) {}
+    }
+
+    var commentText by remember { mutableStateOf("") }
+
+    suspend fun resolveUserName(): String {
+        if (currentUserName.isNotBlank()) return currentUserName
+        val uid = Firebase.auth.currentUser?.uid ?: return ""
+        return try {
+            val doc = Firebase.firestore.collection("users").document(uid).get()
+            val first = doc.get<String?>("prenom") ?: ""
+            val last = doc.get<String?>("nom") ?: ""
+            "$first $last".trim().also { currentUserName = it }
+        } catch (_: Exception) { "" }
+    }
+
+    fun sendComment() {
+        val t = commentText.trim()
+        if (t.isEmpty()) return
+        val uid = Firebase.auth.currentUser?.uid ?: return
+        commentText = ""
+        scope.launch {
+            val name = resolveUserName()
+            commentRepo.addComment(event.id, t, uid, name)
+        }
+    }
+
     val cancelled = event.status == EventStatus.CANCELLED
     var showLoginDialog by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
-    var commentText by remember { mutableStateOf("") }
-    var comments by remember { mutableStateOf(MOCK_COMMENTS) }
 
     val participantCount = participants.size
     val dateLong = "${event.weekday} ${event.day} ${event.month}"
@@ -515,6 +544,12 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                     CommentItem(comment)
                     if (i < comments.lastIndex) Spacer(Modifier.height(16.dp))
                 }
+                if (comments.isEmpty()) {
+                    Text(
+                        "Aucun commentaire pour l'instant.",
+                        style = TextStyle(fontSize = 13.sp, color = CspColors.Muted2),
+                    )
+                }
 
                 // Saisie commentaire
                 Spacer(Modifier.height(16.dp))
@@ -523,7 +558,11 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    AvatarCircle("Moi", isYou = true, modifier = Modifier.size(36.dp))
+                    AvatarCircle(
+                        initials = nameInitials(currentUserName).ifEmpty { "Moi" },
+                        isYou = true,
+                        modifier = Modifier.size(36.dp),
+                    )
                     Row(
                         modifier = Modifier
                             .weight(1f)
@@ -539,6 +578,9 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                             onValueChange = { commentText = it },
                             modifier = Modifier.weight(1f),
                             textStyle = TextStyle(fontSize = 14.sp, color = CspColors.Ink),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(onSend = { sendComment() }),
                             decorationBox = { inner ->
                                 Box {
                                     if (commentText.isEmpty()) {
@@ -557,13 +599,7 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                                 .size(34.dp)
                                 .clip(CircleShape)
                                 .background(if (hasText) CspColors.Red else CspColors.Surface3)
-                                .clickable {
-                                    val t = commentText.trim()
-                                    if (t.isNotEmpty()) {
-                                        comments = listOf(Comment("Moi", "À l'instant", t)) + comments
-                                        commentText = ""
-                                    }
-                                },
+                                .clickable { sendComment() },
                             contentAlignment = Alignment.Center,
                         ) {
                             IconSend(
