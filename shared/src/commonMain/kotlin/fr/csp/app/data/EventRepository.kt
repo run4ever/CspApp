@@ -28,6 +28,7 @@ class EventRepository {
         location: String,
         lat: Double? = null,
         lon: Double? = null,
+        description: String = "",
     ) {
         db.collection("events").add(
             buildMap {
@@ -41,6 +42,7 @@ class EventRepository {
                 put("featured", false)
                 if (lat != null) put("lat", lat)
                 if (lon != null) put("lon", lon)
+                put("description", description)
             }
         )
     }
@@ -60,6 +62,7 @@ private fun DocumentSnapshot.toClubEvent(): ClubEvent? {
         val location = get<String?>("location") ?: ""
         val lat = get<Double?>("lat")
         val lon = get<Double?>("lon")
+        val description = get<String?>("description") ?: ""
         ClubEvent(
             id = id,
             title = title,
@@ -80,6 +83,7 @@ private fun DocumentSnapshot.toClubEvent(): ClubEvent? {
             location = location,
             lat = lat,
             lon = lon,
+            description = description,
         )
     } catch (_: Exception) {
         null

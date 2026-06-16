@@ -87,6 +87,7 @@ private fun CreateEventForm() {
     var mapCenterKey by remember { mutableStateOf(0) }
     var isLoading by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
+    var description by remember { mutableStateOf("") }
     var savingFavorite by remember { mutableStateOf(false) }
     var favoriteName by remember { mutableStateOf("") }
     var favoriteSaved by remember { mutableStateOf(false) }
@@ -109,6 +110,12 @@ private fun CreateEventForm() {
             value = name,
             placeholder = "ex. Sortie du dimanche",
             onValueChange = { name = it; feedback = null },
+        )
+        CspTextArea(
+            label = "Description",
+            value = description,
+            placeholder = "Programme, infos pratiques… (Markdown : **gras**, - liste)",
+            onValueChange = { description = it; feedback = null },
         )
         CspDropdown(
             label = "Type d'événement",
@@ -370,10 +377,12 @@ private fun CreateEventForm() {
                                 location = location,
                                 lat = locationLat,
                                 lon = locationLon,
+                                description = description,
                             )
                             feedback = "✓ Événement créé"
                             name = ""; type = ""; date = ""; time = ""
                             location = ""; locationLat = null; locationLon = null
+                            description = ""
                             mapCenterKey++
                         } catch (e: Exception) {
                             feedback = "Erreur : ${e.message}"
@@ -557,6 +566,38 @@ private fun LocationField(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CspTextArea(
+    label: String,
+    value: String,
+    placeholder: String,
+    onValueChange: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CspColors.Muted))
+        androidx.compose.material3.OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(placeholder, style = TextStyle(fontSize = 14.sp, color = CspColors.Muted2)) },
+            singleLine = false,
+            minLines = 4,
+            maxLines = 10,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = CspColors.Red,
+                unfocusedBorderColor = CspColors.Line,
+                focusedTextColor = CspColors.Ink,
+                unfocusedTextColor = CspColors.Ink,
+                cursorColor = CspColors.Red,
+                focusedContainerColor = CspColors.Surface,
+                unfocusedContainerColor = CspColors.Surface,
+            ),
+            textStyle = TextStyle(fontSize = 14.sp, color = CspColors.Ink, lineHeight = (14 * 1.6).sp),
+        )
     }
 }
 

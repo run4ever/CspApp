@@ -31,9 +31,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.gitlive.firebase.Firebase
@@ -48,16 +52,16 @@ import fr.csp.app.ui.theme.CspColors
 import kotlin.time.Clock
 import org.jetbrains.compose.resources.painterResource
 
-// ── Données mockées ───────────────────────────────────────────
-
-private const val MOCK_PLACE = "Le Drapeau — Vincennes"
-private const val MOCK_ADDRESS = "18 avenue de Paris, 94300 Vincennes"
-private val MOCK_DESC = listOf(
-    "Rendez-vous en face de la brasserie Le Drapeau.",
-    "Départ à l'heure, retour vers midi. Prévoyez un peu d'avance.",
-    "Allure groupe 2 (28–30 km/h), parcours roulant vers la forêt.",
-    "Pensez aux bidons et à un coupe-vent, la météo reste fraîche le matin.",
-)
+private fun mdBold(text: String): AnnotatedString = buildAnnotatedString {
+    val pattern = Regex("""\*\*(.+?)\*\*""")
+    var cursor = 0
+    pattern.findAll(text).forEach { m ->
+        append(text.substring(cursor, m.range.first))
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(m.groupValues[1]) }
+        cursor = m.range.last + 1
+    }
+    append(text.substring(cursor))
+}
 
 private fun relativeTime(epochMillis: Long): String {
     val diffMin = (Clock.System.now().toEpochMilliseconds() - epochMillis) / 60_000
@@ -322,6 +326,66 @@ private fun CommentItem(comment: FirestoreComment) {
     }
 }
 
+@Composable
+private fun MarkdownBlock(
+    content: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val lines = content.lines().filter { it.isNotBlank() }
+    val threshold = 5
+    val visibleLines = if (expanded || lines.size <= threshold) lines else lines.take(threshold)
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        visibleLines.forEach { line ->
+            val trimmed = line.trimStart()
+            val numberedMatch = Regex("""^(\d+)\.\s+(.+)""").matchEntire(trimmed)
+            when {
+                trimmed.startsWith("# ") -> Text(
+                    text = mdBold(trimmed.drop(2)),
+                    style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink, lineHeight = (18 * 1.3).sp),
+                )
+                trimmed.startsWith("## ") -> Text(
+                    text = mdBold(trimmed.drop(3)),
+                    style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink, lineHeight = (16 * 1.3).sp),
+                )
+                trimmed.startsWith("- ") || trimmed.startsWith("* ") -> Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("•", style = TextStyle(fontSize = 14.5.sp, color = CspColors.Ink2))
+                    Text(
+                        text = mdBold(trimmed.drop(2)),
+                        style = TextStyle(fontSize = 14.5.sp, color = CspColors.Ink2, lineHeight = (14.5 * 1.6).sp),
+                    )
+                }
+                numberedMatch != null -> Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("${numberedMatch.groupValues[1]}.", style = TextStyle(fontSize = 14.5.sp, color = CspColors.Ink2))
+                    Text(
+                        text = mdBold(numberedMatch.groupValues[2]),
+                        style = TextStyle(fontSize = 14.5.sp, color = CspColors.Ink2, lineHeight = (14.5 * 1.6).sp),
+                    )
+                }
+                else -> Text(
+                    text = mdBold(line),
+                    style = TextStyle(fontSize = 14.5.sp, color = CspColors.Ink2, lineHeight = (14.5 * 1.6).sp),
+                )
+            }
+        }
+        if (lines.size > threshold) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                if (expanded) "Réduire" else "Lire la suite",
+                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CspColors.Blue),
+                modifier = Modifier.clickable(onClick = onToggle),
+            )
+        }
+    }
+}
+
 // ── Écran principal ───────────────────────────────────────────
 
 @Composable
@@ -458,17 +522,18 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                     sub = "${event.time} GMT+2",
                     actionContent = { IconCalPlus(CspColors.Ink2, Modifier.size(18.dp)) },
                 )
-                val locationLabel = if (event.location.isNotEmpty()) event.location else MOCK_PLACE
-                val locationSub = if (event.lat != null && event.lon != null)
-                    "${event.lat.toString().take(8)}, ${event.lon.toString().take(8)}"
-                else MOCK_ADDRESS
-                DetailInfoRow(
-                    iconContent = { IconPin(CspColors.Red, Modifier.size(19.dp)) },
-                    title = locationLabel,
-                    sub = locationSub,
-                    actionContent = { IconMap(CspColors.Ink2, Modifier.size(18.dp)) },
-                    isLast = true,
-                )
+                if (event.location.isNotEmpty()) {
+                    val locationSub = if (event.lat != null && event.lon != null)
+                        "${event.lat.toString().take(8)}, ${event.lon.toString().take(8)}"
+                    else ""
+                    DetailInfoRow(
+                        iconContent = { IconPin(CspColors.Red, Modifier.size(19.dp)) },
+                        title = event.location,
+                        sub = locationSub,
+                        actionContent = { IconMap(CspColors.Ink2, Modifier.size(18.dp)) },
+                        isLast = true,
+                    )
+                }
 
                 // C : Participants
                 Spacer(Modifier.height(18.dp))
@@ -479,62 +544,54 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 ParticipantAvatars(joined = isJoined, count = participantCount)
 
-                // D : Rendez-vous
-                SectionTitle("Rendez-vous")
-                val visibleDesc = if (expanded) MOCK_DESC else MOCK_DESC.take(2)
-                visibleDesc.forEach { item ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 7.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text("•", style = TextStyle(fontSize = 14.5.sp, color = CspColors.Ink2))
-                        Text(item, style = TextStyle(fontSize = 14.5.sp, color = CspColors.Ink2, lineHeight = (14.5 * 1.6).sp))
-                    }
-                }
-                if (MOCK_DESC.size > 2) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        if (expanded) "Réduire" else "Lire la suite",
-                        style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CspColors.Blue),
-                        modifier = Modifier.clickable { expanded = !expanded },
+                // D : Programme
+                if (event.description.isNotBlank()) {
+                    SectionTitle("Détails")
+                    MarkdownBlock(
+                        content = event.description,
+                        expanded = expanded,
+                        onToggle = { expanded = !expanded },
                     )
                 }
 
                 // E : Lieu
-                SectionTitle("Lieu", action = "Itinéraire")
-                if (event.lat != null && event.lon != null) {
-                    MapView(
-                        lat = event.lat,
-                        lon = event.lon,
-                        label = locationLabel,
+                if (event.location.isNotEmpty()) {
+                    val locationSub = if (event.lat != null && event.lon != null)
+                        "${event.lat.toString().take(8)}, ${event.lon.toString().take(8)}"
+                    else ""
+                    SectionTitle("Lieu", action = "Itinéraire")
+                    if (event.lat != null && event.lon != null) {
+                        MapView(
+                            lat = event.lat,
+                            lon = event.lon,
+                            label = event.location,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(158.dp),
+                        )
+                    } else {
+                        MapPlaceholder(event.location.substringBefore("—").trim())
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(158.dp),
-                    )
-                } else {
-                    MapPlaceholder(locationLabel.substringBefore("—").trim())
-                }
-                Spacer(Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .drawBehind {
-                            drawLine(
-                                CspColors.Red,
-                                Offset(0f, 0f),
-                                Offset(0f, size.height),
-                                strokeWidth = 3.dp.toPx(),
-                                cap = StrokeCap.Square,
-                            )
+                            .drawBehind {
+                                drawLine(
+                                    CspColors.Red,
+                                    Offset(0f, 0f),
+                                    Offset(0f, size.height),
+                                    strokeWidth = 3.dp.toPx(),
+                                    cap = StrokeCap.Square,
+                                )
+                            }
+                            .padding(start = 12.dp),
+                    ) {
+                        Column {
+                            Text(event.location, style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink))
+                            Spacer(Modifier.height(2.dp))
+                            Text(locationSub, style = TextStyle(fontSize = 13.5.sp, color = CspColors.Muted))
                         }
-                        .padding(start = 12.dp),
-                ) {
-                    Column {
-                        Text(locationLabel, style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink))
-                        Spacer(Modifier.height(2.dp))
-                        Text(locationSub, style = TextStyle(fontSize = 13.5.sp, color = CspColors.Muted))
                     }
                 }
 
