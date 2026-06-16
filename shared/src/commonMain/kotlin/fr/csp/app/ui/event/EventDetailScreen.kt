@@ -429,10 +429,14 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                     sub = "${event.time} GMT+2",
                     actionContent = { IconCalPlus(CspColors.Ink2, Modifier.size(18.dp)) },
                 )
+                val locationLabel = if (event.location.isNotEmpty()) event.location else MOCK_PLACE
+                val locationSub = if (event.lat != null && event.lon != null)
+                    "${event.lat.toString().take(8)}, ${event.lon.toString().take(8)}"
+                else MOCK_ADDRESS
                 DetailInfoRow(
                     iconContent = { IconPin(CspColors.Red, Modifier.size(19.dp)) },
-                    title = MOCK_PLACE,
-                    sub = MOCK_ADDRESS,
+                    title = locationLabel,
+                    sub = locationSub,
                     actionContent = { IconMap(CspColors.Ink2, Modifier.size(18.dp)) },
                     isLast = true,
                 )
@@ -471,7 +475,18 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
 
                 // E : Lieu
                 SectionTitle("Lieu", action = "Itinéraire")
-                MapPlaceholder(MOCK_PLACE.substringBefore("—").trim())
+                if (event.lat != null && event.lon != null) {
+                    MapView(
+                        lat = event.lat,
+                        lon = event.lon,
+                        label = locationLabel,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(158.dp),
+                    )
+                } else {
+                    MapPlaceholder(locationLabel.substringBefore("—").trim())
+                }
                 Spacer(Modifier.height(14.dp))
                 Row(
                     modifier = Modifier
@@ -488,9 +503,9 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit) {
                         .padding(start = 12.dp),
                 ) {
                     Column {
-                        Text(MOCK_PLACE, style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink))
+                        Text(locationLabel, style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink))
                         Spacer(Modifier.height(2.dp))
-                        Text(MOCK_ADDRESS, style = TextStyle(fontSize = 13.5.sp, color = CspColors.Muted))
+                        Text(locationSub, style = TextStyle(fontSize = 13.5.sp, color = CspColors.Muted))
                     }
                 }
 

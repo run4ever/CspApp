@@ -26,18 +26,22 @@ class EventRepository {
         date: String,
         time: String,
         location: String,
+        lat: Double? = null,
+        lon: Double? = null,
     ) {
         db.collection("events").add(
-            mapOf(
-                "title" to title,
-                "type" to type,
-                "date" to date,
-                "time" to time,
-                "location" to location,
-                "status" to "OPEN",
-                "participants_count" to 0,
-                "featured" to false,
-            )
+            buildMap {
+                put("title", title)
+                put("type", type)
+                put("date", date)
+                put("time", time)
+                put("location", location)
+                put("status", "OPEN")
+                put("participants_count", 0)
+                put("featured", false)
+                if (lat != null) put("lat", lat)
+                if (lon != null) put("lon", lon)
+            }
         )
     }
 }
@@ -53,6 +57,9 @@ private fun DocumentSnapshot.toClubEvent(): ClubEvent? {
         val participants = if (participantsArray.isNotEmpty()) participantsArray.size
                           else get<Long?>("participants_count")?.toInt() ?: 0
         val localDate = parseDateFr(dateStr)
+        val location = get<String?>("location") ?: ""
+        val lat = get<Double?>("lat")
+        val lon = get<Double?>("lon")
         ClubEvent(
             id = id,
             title = title,
@@ -70,6 +77,9 @@ private fun DocumentSnapshot.toClubEvent(): ClubEvent? {
             featured = featured,
             participants = participants,
             dateSort = localDate?.toString() ?: dateStr,
+            location = location,
+            lat = lat,
+            lon = lon,
         )
     } catch (_: Exception) {
         null

@@ -13,6 +13,9 @@ data class ClubEvent(
     val featured: Boolean = false,
     val participants: Int = 0,
     val dateSort: String = "",
+    val location: String = "",
+    val lat: Double? = null,
+    val lon: Double? = null,
 )
 
 enum class EventStatus { OPEN, CANCELLED, FULL }

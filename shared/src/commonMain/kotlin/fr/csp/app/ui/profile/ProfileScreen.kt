@@ -3,6 +3,7 @@ package fr.csp.app.ui.profile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,9 +21,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.csp.app.data.EventRepository
+import fr.csp.app.data.FavoriteLocation
+import fr.csp.app.data.FavoriteRepository
+import fr.csp.app.data.LocationSuggestion
+import fr.csp.app.data.NominatimService
+import fr.csp.app.ui.event.MapPicker
 import fr.csp.app.ui.home.IconChevronRight
+import fr.csp.app.ui.home.IconPin
 import fr.csp.app.ui.theme.CspColors
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val DEFAULT_LAT = 48.84470902674985
+private const val DEFAULT_LON = 2.4364809007277324
 
 private val EVENT_TYPES = listOf(
     "Sortie hebdo CSP",
@@ -57,17 +68,35 @@ private fun CreateEventForm() {
     var date by remember { mutableStateOf("") }
     var time by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
+    var locationLat by remember { mutableStateOf<Double?>(null) }
+    var locationLon by remember { mutableStateOf<Double?>(null) }
+    var mapCenterKey by remember { mutableStateOf(0) }
     var isLoading by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
+    var savingFavorite by remember { mutableStateOf(false) }
+    var favoriteName by remember { mutableStateOf("") }
+    var favoriteSaved by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val repository = remember { EventRepository() }
+    val favoriteRepo = remember { FavoriteRepository() }
+    val favorites by favoriteRepo.getFavorites().collectAsState(initial = emptyList())
 
     val formValid = name.isNotBlank() && type.isNotBlank() && date.isNotBlank() && time.isNotBlank()
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        CspField(label = "Nom de l'événement", value = name, placeholder = "ex. Sortie du dimanche", onValueChange = { name = it; feedback = null })
-        CspDropdown(label = "Type d'événement", selected = type, options = EVENT_TYPES, onSelect = { type = it; feedback = null })
+        CspField(
+            label = "Nom de l'événement",
+            value = name,
+            placeholder = "ex. Sortie du dimanche",
+            onValueChange = { name = it; feedback = null },
+        )
+        CspDropdown(
+            label = "Type d'événement",
+            selected = type,
+            options = EVENT_TYPES,
+            onSelect = { type = it; feedback = null },
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(modifier = Modifier.weight(1f)) {
                 CspField(label = "Date", value = date, placeholder = "jj/mm/aaaa", onValueChange = { date = it; feedback = null })
@@ -76,13 +105,176 @@ private fun CreateEventForm() {
                 CspField(label = "Heure", value = time, placeholder = "08h00", onValueChange = { time = it; feedback = null })
             }
         }
-        CspField(label = "Lieu", value = location, placeholder = "ex. Parking Colette, Pantin", onValueChange = { location = it })
 
-        feedback?.let {
-            Text(it, style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (it.startsWith("✓")) CspColors.Green else CspColors.Red))
+        // Lieux favoris
+        if (favorites.isNotEmpty()) {
+            FavoritesRow(
+                favorites = favorites,
+                onSelect = { fav ->
+                    location = fav.address
+                    locationLat = fav.lat
+                    locationLon = fav.lon
+                    savingFavorite = false
+                    favoriteSaved = false
+                    mapCenterKey++
+                    feedback = null
+                },
+            )
         }
 
-        Spacer(Modifier.height(4.dp))
+        // Champ lieu (texte + autocomplétion)
+        LocationField(
+            value = location,
+            lat = locationLat,
+            lon = locationLon,
+            onValueChange = { text ->
+                location = text
+                locationLat = null
+                locationLon = null
+                savingFavorite = false
+                favoriteSaved = false
+            },
+            onSuggestionSelected = { suggestion ->
+                location = suggestion.displayName
+                locationLat = suggestion.lat
+                locationLon = suggestion.lon
+                savingFavorite = false
+                favoriteSaved = false
+                mapCenterKey++
+                feedback = null
+            },
+        )
+
+        // Confirmation de position + enregistrement favori
+        if (locationLat != null && locationLon != null) {
+            if (!savingFavorite) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "✓ Position confirmée",
+                        style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Green),
+                    )
+                    Spacer(Modifier.weight(1f))
+                    if (favoriteSaved) {
+                        Text(
+                            "★ Enregistré comme favori",
+                            style = TextStyle(fontSize = 12.sp, color = CspColors.Green),
+                        )
+                    } else {
+                        Text(
+                            "☆ Enregistrer comme favori",
+                            style = TextStyle(fontSize = 12.sp, color = CspColors.Muted),
+                            modifier = Modifier.clickable { savingFavorite = true; favoriteName = "" },
+                        )
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CspField(
+                        label = "Nom du lieu favori",
+                        value = favoriteName,
+                        placeholder = "ex. Vélodrome CSP",
+                        onValueChange = { favoriteName = it },
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(CspColors.Surface3)
+                                .clickable { savingFavorite = false }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("Annuler", style = TextStyle(fontSize = 14.sp, color = CspColors.Muted))
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (favoriteName.isNotBlank()) CspColors.Surface else CspColors.Surface3)
+                                .border(
+                                    1.dp,
+                                    if (favoriteName.isNotBlank()) CspColors.Green else CspColors.Line,
+                                    RoundedCornerShape(12.dp),
+                                )
+                                .clickable(enabled = favoriteName.isNotBlank()) {
+                                    scope.launch {
+                                        favoriteRepo.addFavorite(
+                                            name = favoriteName,
+                                            address = location,
+                                            lat = locationLat!!,
+                                            lon = locationLon!!,
+                                        )
+                                        savingFavorite = false
+                                        favoriteName = ""
+                                        favoriteSaved = true
+                                    }
+                                }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                "Enregistrer",
+                                style = TextStyle(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (favoriteName.isNotBlank()) CspColors.Green else CspColors.Muted2,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Séparateur
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            HorizontalDivider(modifier = Modifier.weight(1f), color = CspColors.Line)
+            Text(
+                "ou positionner le pointeur",
+                style = TextStyle(fontSize = 11.sp, color = CspColors.Muted2),
+            )
+            HorizontalDivider(modifier = Modifier.weight(1f), color = CspColors.Line)
+        }
+
+        // Carte de sélection
+        MapPicker(
+            lat = locationLat ?: DEFAULT_LAT,
+            lon = locationLon ?: DEFAULT_LON,
+            centerKey = mapCenterKey,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(220.dp)
+                .clip(RoundedCornerShape(14.dp)),
+            onLocationChanged = { newLat, newLon ->
+                locationLat = newLat
+                locationLon = newLon
+                savingFavorite = false
+                favoriteSaved = false
+                scope.launch {
+                    val suggestion = NominatimService.reverse(newLat, newLon)
+                    if (suggestion != null) location = suggestion.displayName
+                }
+            },
+        )
+
+        feedback?.let {
+            Text(
+                it,
+                style = TextStyle(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (it.startsWith("✓")) CspColors.Green else CspColors.Red,
+                ),
+            )
+        }
 
         Box(
             modifier = Modifier
@@ -100,9 +292,13 @@ private fun CreateEventForm() {
                                 date = date,
                                 time = time,
                                 location = location,
+                                lat = locationLat,
+                                lon = locationLon,
                             )
                             feedback = "✓ Événement créé"
-                            name = ""; type = ""; date = ""; time = ""; location = ""
+                            name = ""; type = ""; date = ""; time = ""
+                            location = ""; locationLat = null; locationLon = null
+                            mapCenterKey++
                         } catch (e: Exception) {
                             feedback = "Erreur : ${e.message}"
                         } finally {
@@ -120,6 +316,169 @@ private fun CreateEventForm() {
                     "Créer l'événement",
                     style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.Ink),
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FavoritesRow(
+    favorites: List<FavoriteLocation>,
+    onSelect: (FavoriteLocation) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            "Lieux favoris",
+            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CspColors.Muted),
+        )
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            favorites.forEach { fav ->
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(CspColors.Surface)
+                        .border(1.dp, CspColors.Line, RoundedCornerShape(999.dp))
+                        .clickable { onSelect(fav) }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "★ ${fav.name}",
+                        style = TextStyle(fontSize = 13.sp, color = CspColors.Ink),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LocationField(
+    value: String,
+    lat: Double?,
+    lon: Double?,
+    onValueChange: (String) -> Unit,
+    onSuggestionSelected: (LocationSuggestion) -> Unit,
+) {
+    var suggestions by remember { mutableStateOf<List<LocationSuggestion>>(emptyList()) }
+    var isSearching by remember { mutableStateOf(false) }
+
+    LaunchedEffect(value) {
+        if (lat != null || value.length < 3) {
+            suggestions = emptyList()
+            isSearching = false
+            return@LaunchedEffect
+        }
+        isSearching = true
+        delay(500)
+        try {
+            suggestions = NominatimService.search(value)
+        } catch (_: Exception) {
+            suggestions = emptyList()
+        } finally {
+            isSearching = false
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Lieu", style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CspColors.Muted))
+
+        val hasDropdown = suggestions.isNotEmpty()
+        val borderColor = when {
+            lat != null && lon != null -> CspColors.Green
+            hasDropdown -> CspColors.Red
+            else -> CspColors.Line
+        }
+        val fieldShape = RoundedCornerShape(
+            topStart = 12.dp,
+            topEnd = 12.dp,
+            bottomEnd = if (hasDropdown) 0.dp else 12.dp,
+            bottomStart = if (hasDropdown) 0.dp else 12.dp,
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(fieldShape)
+                .border(1.dp, borderColor, fieldShape)
+                .background(CspColors.Surface),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                IconPin(
+                    tint = if (lat != null) CspColors.Green else CspColors.Muted2,
+                    modifier = Modifier.size(16.dp),
+                )
+                androidx.compose.material3.OutlinedTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    placeholder = {
+                        Text(
+                            "ex. Parking Colette, Pantin",
+                            style = TextStyle(fontSize = 15.sp, color = CspColors.Muted2),
+                        )
+                    },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                        unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                        focusedTextColor = CspColors.Ink,
+                        unfocusedTextColor = CspColors.Ink,
+                        cursorColor = CspColors.Red,
+                        focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                        unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    ),
+                    textStyle = TextStyle(fontSize = 15.sp, color = CspColors.Ink),
+                )
+                if (isSearching) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = CspColors.Muted,
+                        strokeWidth = 2.dp,
+                    )
+                }
+            }
+        }
+
+        if (suggestions.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
+                    .border(1.dp, CspColors.Line, RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
+                    .background(CspColors.Surface),
+            ) {
+                suggestions.forEachIndexed { i, suggestion ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSuggestionSelected(suggestion) }
+                            .padding(horizontal = 14.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        IconPin(tint = CspColors.Red, modifier = Modifier.size(14.dp))
+                        Text(
+                            text = suggestion.displayName,
+                            style = TextStyle(fontSize = 13.5.sp, color = CspColors.Ink, lineHeight = (13.5 * 1.4).sp),
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (i < suggestions.lastIndex) {
+                        HorizontalDivider(color = CspColors.Line2, thickness = 1.dp)
+                    }
+                }
             }
         }
     }
@@ -203,10 +562,7 @@ private fun CspDropdown(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                onSelect(option)
-                                expanded = false
-                            }
+                            .clickable { onSelect(option); expanded = false }
                             .padding(horizontal = 14.dp, vertical = 13.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
