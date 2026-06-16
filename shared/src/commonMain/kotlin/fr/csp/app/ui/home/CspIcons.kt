@@ -257,6 +257,26 @@ fun IconBell(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.
 }
 
 @Composable
+fun IconTrash(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        // Couvercle
+        drawLine(tint, Offset(s(4f), s(7f)), Offset(s(20f), s(7f)), st.width, StrokeCap.Round)
+        drawLine(tint, Offset(s(9f), s(7f)), Offset(s(9f), s(4f)), st.width, StrokeCap.Round)
+        drawLine(tint, Offset(s(15f), s(7f)), Offset(s(15f), s(4f)), st.width, StrokeCap.Round)
+        drawLine(tint, Offset(s(9f), s(4f)), Offset(s(15f), s(4f)), st.width, StrokeCap.Round)
+        // Corps
+        val body = Path().apply {
+            moveTo(s(5f), s(7f))
+            lineTo(s(6f), s(21f))
+            lineTo(s(18f), s(21f))
+            lineTo(s(19f), s(7f))
+        }
+        drawPath(body, tint, style = st)
+    }
+}
+
+@Composable
 fun IconPencil(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
     Canvas(modifier = modifier) {
         val st = iconStroke(strokeWidth)

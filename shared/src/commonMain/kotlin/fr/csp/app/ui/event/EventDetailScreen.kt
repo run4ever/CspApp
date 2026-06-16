@@ -308,10 +308,31 @@ private fun MapPlaceholder(label: String) {
 }
 
 @Composable
-private fun CommentItem(comment: FirestoreComment) {
+private fun CommentItem(comment: FirestoreComment, canDelete: Boolean = false, onDelete: (() -> Unit)? = null) {
+    var showConfirm by remember { mutableStateOf(false) }
+
+    if (showConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("Supprimer ce commentaire ?") },
+            text = { Text("Cette action est irréversible.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showConfirm = false; onDelete?.invoke() }) {
+                    Text("Supprimer", color = CspColors.Red)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showConfirm = false }) {
+                    Text("Annuler")
+                }
+            },
+        )
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(11.dp),
+        verticalAlignment = Alignment.Top,
     ) {
         AvatarCircle(initials = nameInitials(comment.authorName).ifEmpty { "?" }, modifier = Modifier.size(36.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -322,6 +343,15 @@ private fun CommentItem(comment: FirestoreComment) {
             }
             Spacer(Modifier.height(3.dp))
             Text(comment.text, style = TextStyle(fontSize = 14.sp, color = CspColors.Ink2, lineHeight = (14 * 1.5).sp))
+        }
+        if (canDelete) {
+            Box(
+                modifier = Modifier
+                    .clickable { showConfirm = true }
+                    .padding(4.dp),
+            ) {
+                IconTrash(tint = CspColors.Muted2, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
@@ -610,8 +640,15 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
 
                 // F : Commentaires
                 SectionTitle("Commentaires", count = comments.size)
+                val currentUid = Firebase.auth.currentUser?.uid
                 comments.forEachIndexed { i, comment ->
-                    CommentItem(comment)
+                    CommentItem(
+                        comment = comment,
+                        canDelete = isAdmin || comment.authorId == currentUid,
+                        onDelete = {
+                            scope.launch { commentRepo.deleteComment(event.id, comment.id) }
+                        },
+                    )
                     if (i < comments.lastIndex) Spacer(Modifier.height(16.dp))
                 }
                 if (comments.isEmpty()) {

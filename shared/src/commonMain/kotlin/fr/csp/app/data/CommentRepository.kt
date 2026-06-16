@@ -33,6 +33,10 @@ class CommentRepository {
             }.sortedByDescending { it.createdAt }
         }
 
+    suspend fun deleteComment(eventId: String, commentId: String) {
+        ref(eventId).document(commentId).delete()
+    }
+
     suspend fun addComment(eventId: String, text: String, authorId: String, authorName: String) {
         ref(eventId).add(mapOf(
             "text" to text,
