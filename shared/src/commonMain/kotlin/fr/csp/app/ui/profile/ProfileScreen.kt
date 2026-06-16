@@ -8,13 +8,25 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DatePickerState
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.*
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -25,6 +37,7 @@ import fr.csp.app.data.FavoriteLocation
 import fr.csp.app.data.FavoriteRepository
 import fr.csp.app.data.LocationSuggestion
 import fr.csp.app.data.NominatimService
+import fr.csp.app.ui.frenchCalendarLocale
 import fr.csp.app.ui.event.MapPicker
 import fr.csp.app.ui.home.IconChevronRight
 import fr.csp.app.ui.home.IconPin
@@ -61,6 +74,7 @@ fun ProfileScreen() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CreateEventForm() {
     var name by remember { mutableStateOf("") }
@@ -76,6 +90,11 @@ private fun CreateEventForm() {
     var savingFavorite by remember { mutableStateOf(false) }
     var favoriteName by remember { mutableStateOf("") }
     var favoriteSaved by remember { mutableStateOf(false) }
+
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = remember { DatePickerState(locale = frenchCalendarLocale()) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    val timePickerState = rememberTimePickerState(initialHour = 8, initialMinute = 0, is24Hour = true)
 
     val scope = rememberCoroutineScope()
     val repository = remember { EventRepository() }
@@ -99,11 +118,68 @@ private fun CreateEventForm() {
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(modifier = Modifier.weight(1f)) {
-                CspField(label = "Date", value = date, placeholder = "jj/mm/aaaa", onValueChange = { date = it; feedback = null })
+                CspReadonlyField(
+                    label = "Date",
+                    value = date,
+                    placeholder = "jj/mm/aaaa",
+                    onClick = { showDatePicker = true },
+                )
             }
             Box(modifier = Modifier.weight(1f)) {
-                CspField(label = "Heure", value = time, placeholder = "08h00", onValueChange = { time = it; feedback = null })
+                CspReadonlyField(
+                    label = "Heure",
+                    value = time,
+                    placeholder = "08h00",
+                    onClick = { showTimePicker = true },
+                )
             }
+        }
+
+        if (showDatePicker) {
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            date = millisToDateStr(millis)
+                            feedback = null
+                        }
+                        showDatePicker = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePicker = false }) { Text("Annuler") }
+                },
+            ) {
+                DatePicker(
+                    state = datePickerState,
+                    title = { Text("Sélectionnez une date", modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp)) },
+                    headline = {
+                        Text(
+                            text = datePickerState.selectedDateMillis?.let { millisToDateStr(it) } ?: "Date choisie",
+                            modifier = Modifier.padding(start = 24.dp, end = 12.dp, bottom = 12.dp),
+                            style = TextStyle(fontSize = 32.sp, fontWeight = FontWeight.Normal),
+                        )
+                    },
+                )
+            }
+        }
+
+        if (showTimePicker) {
+            AlertDialog(
+                onDismissRequest = { showTimePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        time = timeToStr(timePickerState.hour, timePickerState.minute)
+                        feedback = null
+                        showTimePicker = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showTimePicker = false }) { Text("Annuler") }
+                },
+                text = { TimePicker(state = timePickerState) },
+            )
         }
 
         // Lieux favoris
@@ -511,6 +587,47 @@ private fun CspField(
             ),
             textStyle = TextStyle(fontSize = 15.sp, color = CspColors.Ink),
         )
+    }
+}
+
+private fun millisToDateStr(millis: Long): String {
+    val local = Instant.fromEpochMilliseconds(millis).toLocalDateTime(TimeZone.UTC)
+    @Suppress("DEPRECATION")
+    val d = local.dayOfMonth.toString().padStart(2, '0')
+    @Suppress("DEPRECATION")
+    val m = local.monthNumber.toString().padStart(2, '0')
+    return "$d/$m/${local.year}"
+}
+
+private fun timeToStr(hour: Int, minute: Int): String =
+    "${hour.toString().padStart(2, '0')}h${minute.toString().padStart(2, '0')}"
+
+@Composable
+private fun CspReadonlyField(
+    label: String,
+    value: String,
+    placeholder: String,
+    onClick: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CspColors.Muted))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, CspColors.Line, RoundedCornerShape(12.dp))
+                .background(CspColors.Surface)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 16.dp),
+        ) {
+            Text(
+                text = value.ifEmpty { placeholder },
+                style = TextStyle(
+                    fontSize = 15.sp,
+                    color = if (value.isEmpty()) CspColors.Muted2 else CspColors.Ink,
+                ),
+            )
+        }
     }
 }
 
