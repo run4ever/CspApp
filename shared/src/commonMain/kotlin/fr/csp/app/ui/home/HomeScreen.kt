@@ -456,7 +456,7 @@ fun BottomNav(activeTab: Int = 0, onTabSelected: (Int) -> Unit = {}) {
 // ── Écran complet ─────────────────────────────────────────────
 
 @Composable
-fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}) {
+fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Unit)? = null) {
     val vm = viewModel { HomeViewModel() }
     val events by vm.events.collectAsStateWithLifecycle()
     val userDoc by vm.userDoc.collectAsStateWithLifecycle()
@@ -524,11 +524,28 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}) {
                     }
                     if (afterFeatured.isNotEmpty()) {
                         Spacer(Modifier.height(24.dp))
-                        Text(
-                            "Sorties suivantes",
-                            style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
-                            modifier = Modifier.padding(bottom = 16.dp),
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                "Sorties suivantes",
+                                style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+                            )
+                            if (isAdmin && onCreateEvent != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(CircleShape)
+                                        .background(CspColors.Red)
+                                        .clickable(onClick = onCreateEvent),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    IconCalPlus(tint = Color.White, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
                         afterFeatured.forEachIndexed { index, event ->
                             AgendaItem(
                                 event = event,

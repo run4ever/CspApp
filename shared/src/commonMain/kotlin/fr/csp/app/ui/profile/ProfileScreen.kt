@@ -76,20 +76,31 @@ private val EVENT_TYPES = listOf(
 )
 
 @Composable
-fun ProfileScreen() {
+fun ProfileScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(CspColors.Bg)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 24.dp),
+            .padding(horizontal = 18.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        Text(
-            "Créer un événement",
-            style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
-        )
+        Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(modifier = Modifier.clickable(onClick = onBack).padding(4.dp)) {
+                IconBack(tint = CspColors.Ink, modifier = Modifier.size(22.dp))
+            }
+            Text(
+                "Créer un événement",
+                style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+            )
+        }
         CreateEventForm()
+        Spacer(Modifier.height(40.dp))
     }
 }
 
