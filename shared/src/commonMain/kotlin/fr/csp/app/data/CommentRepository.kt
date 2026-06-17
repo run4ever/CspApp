@@ -11,6 +11,7 @@ data class FirestoreComment(
     val text: String = "",
     val authorId: String = "",
     val authorName: String = "",
+    val authorPhotoUrl: String? = null,
     val createdAt: Long = 0L,
 )
 
@@ -27,6 +28,7 @@ class CommentRepository {
                         text = doc.get<String?>("text") ?: return@mapNotNull null,
                         authorId = doc.get<String?>("authorId") ?: "",
                         authorName = doc.get<String?>("authorName") ?: "",
+                        authorPhotoUrl = doc.get<String?>("authorPhotoUrl"),
                         createdAt = doc.get<Long?>("createdAt") ?: 0L,
                     )
                 } catch (_: Exception) { null }
@@ -37,12 +39,13 @@ class CommentRepository {
         ref(eventId).document(commentId).delete()
     }
 
-    suspend fun addComment(eventId: String, text: String, authorId: String, authorName: String) {
-        ref(eventId).add(mapOf(
-            "text" to text,
-            "authorId" to authorId,
-            "authorName" to authorName,
-            "createdAt" to Clock.System.now().toEpochMilliseconds(),
-        ))
+    suspend fun addComment(eventId: String, text: String, authorId: String, authorName: String, authorPhotoUrl: String? = null) {
+        ref(eventId).add(buildMap {
+            put("text", text)
+            put("authorId", authorId)
+            put("authorName", authorName)
+            put("createdAt", Clock.System.now().toEpochMilliseconds())
+            if (authorPhotoUrl != null) put("authorPhotoUrl", authorPhotoUrl)
+        })
     }
 }

@@ -17,6 +17,7 @@ data class UserDoc(
     val status: String,
     val email: String,
     val canComment: Boolean = true,
+    val photoUrl: String? = null,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -26,8 +27,9 @@ class HomeViewModel : ViewModel() {
     val events = repository.getEvents()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val currentUid: Flow<String?> = Firebase.auth.authStateChanged
+    val currentUid: StateFlow<String?> = Firebase.auth.authStateChanged
         .map { it?.uid }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val userDoc: StateFlow<UserDoc?> = currentUid.flatMapLatest { uid ->
         if (uid == null) flowOf(null)
@@ -42,6 +44,7 @@ class HomeViewModel : ViewModel() {
                     status = doc.get<String?>("status") ?: "",
                     email = doc.get<String?>("email") ?: "",
                     canComment = doc.get<Boolean?>("canComment") ?: true,
+                    photoUrl = doc.get<String?>("photoUrl"),
                 )
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -57,4 +60,23 @@ class HomeViewModel : ViewModel() {
             .snapshots
             .map { it.documents.size }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    val featuredParticipantPhotos: StateFlow<Map<String, String?>> = events
+        .flatMapLatest { eventList ->
+            val today = currentDateIso()
+            val featured = eventList
+                .filter { it.dateSort.isEmpty() || it.dateSort >= today }
+                .firstOrNull { it.status != EventStatus.CANCELLED }
+            val uids = featured?.participantIds ?: emptyList()
+            if (uids.isEmpty()) flowOf(emptyMap())
+            else flow {
+                emit(uids.associate { uid ->
+                    uid to try {
+                        Firebase.firestore.collection("users").document(uid).get()
+                            .get<String?>("photoUrl")
+                    } catch (_: Exception) { null }
+                })
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 }

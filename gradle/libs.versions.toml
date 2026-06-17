@@ -19,6 +19,8 @@ kotlinx-datetime = "0.6.2"
 material3 = "1.11.0-alpha07"
 gitlive-firebase = "2.4.0"
 firebaseBom = "34.14.0"
+coil3 = "3.2.0"
+filekit = "0.8.8"
 sqldelight = "2.3.2"
 
 [libraries]
@@ -43,7 +45,11 @@ compose-components-resources = { module = "org.jetbrains.compose.components:comp
 compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 firebase-auth = { module = "dev.gitlive:firebase-auth", version.ref = "gitlive-firebase" }
 firebase-firestore = { module = "dev.gitlive:firebase-firestore", version.ref = "gitlive-firebase" }
+firebase-storage = { module = "dev.gitlive:firebase-storage", version.ref = "gitlive-firebase" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil3" }
+coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil3" }
+filekit-compose = { module = "io.github.vinceglb:filekit-compose", version.ref = "filekit" }
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }
 sqldelight-android-driver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
 sqldelight-native-driver = { module = "app.cash.sqldelight:native-driver", version.ref = "sqldelight" }

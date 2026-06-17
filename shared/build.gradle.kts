@@ -42,7 +42,7 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.sqldelight.android.driver)
             // BoM Firebase : fixe les versions des SDK natifs Android (firebase-auth,
-            // firebase-common) que GitLive déclare sans version.
+            // firebase-common, firebase-storage) que GitLive déclare sans version.
             implementation(project.dependencies.platform(libs.firebase.bom))
             implementation(libs.ktor.client.okhttp)
         }
@@ -57,12 +57,16 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.firebase.auth)
             implementation(libs.firebase.firestore)
+            implementation(libs.firebase.storage)
             implementation(libs.sqldelight.runtime)
             implementation(libs.kotlinx.datetime)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.coil.compose)
+            implementation(libs.coil.network.ktor)
+            implementation(libs.filekit.compose)
         }
         iosMain.dependencies {
             implementation(libs.sqldelight.native.driver)

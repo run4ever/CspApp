@@ -8,29 +8,42 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import dev.gitlive.firebase.Firebase
+import dev.gitlive.firebase.auth.auth
+import dev.gitlive.firebase.firestore.firestore
+import dev.gitlive.firebase.storage.storage
 import fr.csp.app.ui.auth.AuthScreen
 import fr.csp.app.ui.auth.AuthViewModel
 import fr.csp.app.ui.home.IconBack
 import fr.csp.app.ui.home.IconChevronRight
+import fr.csp.app.ui.home.IconPencil
 import fr.csp.app.ui.home.IconSettings
 import fr.csp.app.ui.home.IconShield
 import fr.csp.app.ui.home.IconUser
 import fr.csp.app.ui.home.IconX
 import fr.csp.app.ui.home.UserDoc
 import fr.csp.app.ui.theme.CspColors
+import fr.csp.app.util.compressImageToJpeg
+import fr.csp.app.util.toStorageData
+import io.github.vinceglb.filekit.compose.rememberFilePickerLauncher
+import io.github.vinceglb.filekit.core.PickerType
 import kotlinx.coroutines.launch
 
-private enum class MenuNav { Main, Profile }
+private enum class MenuNav { Main, Profile, Auth }
 
 @Composable
 fun MenuScreen(
@@ -42,18 +55,27 @@ fun MenuScreen(
     onSignOut: () -> Unit,
     onLoginSuccess: () -> Unit,
     onSignupSuccess: () -> Unit,
+    startOnAuth: Boolean = false,
+    onAuthStartHandled: () -> Unit = {},
 ) {
     val isLoggedIn = userDoc?.status == "VALIDATED"
     val scope = rememberCoroutineScope()
     var nav by remember { mutableStateOf(MenuNav.Main) }
 
+    LaunchedEffect(startOnAuth) {
+        if (startOnAuth) {
+            nav = MenuNav.Auth
+            onAuthStartHandled()
+        }
+    }
+
     when {
-        !isLoggedIn -> AuthScreen(
+        nav == MenuNav.Auth -> AuthScreen(
             vm = authVm,
-            onLoginSuccess = onLoginSuccess,
-            onSignupSuccess = onSignupSuccess,
+            onLoginSuccess = { nav = MenuNav.Main; onLoginSuccess() },
+            onSignupSuccess = { nav = MenuNav.Main; onSignupSuccess() },
         )
-        nav == MenuNav.Profile -> ProfileSubScreen(
+        nav == MenuNav.Profile && isLoggedIn -> ProfileSubScreen(
             user = userDoc!!,
             onBack = { nav = MenuNav.Main },
             onSignOut = {
@@ -62,11 +84,12 @@ fun MenuScreen(
             },
         )
         else -> MenuContent(
-            user = userDoc!!,
-            isAdmin = isAdmin,
+            user = userDoc,
+            isAdmin = isAdmin && isLoggedIn,
             onClose = onClose,
             onMemberManagement = onMemberManagement,
             onProfileClick = { nav = MenuNav.Profile },
+            onAuthClick = { nav = MenuNav.Auth },
         )
     }
 }
@@ -75,13 +98,14 @@ fun MenuScreen(
 
 @Composable
 private fun MenuContent(
-    user: UserDoc,
+    user: UserDoc?,
     isAdmin: Boolean,
     onClose: () -> Unit,
     onMemberManagement: () -> Unit,
     onProfileClick: () -> Unit,
+    onAuthClick: () -> Unit,
 ) {
-    val initials = "${user.prenom.firstOrNull() ?: ""}${user.nom.firstOrNull() ?: ""}".uppercase()
+    val initials = "${user?.prenom?.firstOrNull() ?: ""}${user?.nom?.firstOrNull() ?: ""}".uppercase()
 
     Column(
         modifier = Modifier
@@ -115,44 +139,61 @@ private fun MenuContent(
 
         // ── Section Compte ────────────────────────────────────
         MenuSection(title = "Compte") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Box(
+            if (user != null) {
+                Row(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(CspColors.Blue),
-                    contentAlignment = Alignment.Center,
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    Text(
-                        initials,
-                        style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.CyanInk),
-                    )
-                }
-                Column {
-                    Text(
-                        "${user.prenom} ${user.nom}".trim(),
-                        style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.Ink),
-                    )
-                    if (user.email.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(CspColors.Blue),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (!user.photoUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = user.photoUrl,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                            )
+                        } else {
+                            Text(
+                                initials,
+                                style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.CyanInk),
+                            )
+                        }
+                    }
+                    Column {
                         Text(
-                            user.email,
-                            style = TextStyle(fontSize = 13.sp, color = CspColors.Muted),
+                            "${user.prenom} ${user.nom}".trim(),
+                            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.Ink),
                         )
+                        if (user.email.isNotBlank()) {
+                            Text(
+                                user.email,
+                                style = TextStyle(fontSize = 13.sp, color = CspColors.Muted),
+                            )
+                        }
                     }
                 }
+                HorizontalDivider(color = CspColors.Line2)
+                MenuRow(
+                    label = "Mon profil",
+                    icon = { IconUser(tint = CspColors.Muted, modifier = Modifier.size(18.dp)) },
+                    onClick = onProfileClick,
+                )
+            } else {
+                MenuRow(
+                    label = "Se connecter / Créer un compte",
+                    icon = { IconUser(tint = CspColors.Muted, modifier = Modifier.size(18.dp)) },
+                    onClick = onAuthClick,
+                )
             }
-            HorizontalDivider(color = CspColors.Line2)
-            MenuRow(
-                label = "Mon profil",
-                icon = { IconUser(tint = CspColors.Muted, modifier = Modifier.size(18.dp)) },
-                onClick = onProfileClick,
-            )
         }
 
         // ── Section Admin ─────────────────────────────────────
@@ -182,6 +223,33 @@ private fun ProfileSubScreen(
     onBack: () -> Unit,
     onSignOut: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
+    var uploading by remember { mutableStateOf(false) }
+    var uploadError by remember { mutableStateOf<String?>(null) }
+    val initials = "${user.prenom.firstOrNull() ?: ""}${user.nom.firstOrNull() ?: ""}".uppercase()
+
+    val launcher = rememberFilePickerLauncher(type = PickerType.Image) { file ->
+        file ?: return@rememberFilePickerLauncher
+        scope.launch {
+            uploading = true
+            uploadError = null
+            try {
+                val uid = Firebase.auth.currentUser?.uid ?: return@launch
+                val bytes = file.readBytes()
+                val compressed = compressImageToJpeg(bytes, maxPx = 512, quality = 85)
+                val ref = Firebase.storage.reference.child("avatars/$uid.jpg")
+                ref.putData(compressed.toStorageData())
+                val url = ref.getDownloadUrl()
+                Firebase.firestore.collection("users").document(uid)
+                    .set(mapOf("photoUrl" to url), merge = true)
+            } catch (e: Exception) {
+                uploadError = "Erreur lors du chargement de la photo"
+            } finally {
+                uploading = false
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -209,6 +277,66 @@ private fun ProfileSubScreen(
             Text(
                 "Mon profil",
                 style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+            )
+        }
+
+        // Avatar cliquable
+        Box(modifier = Modifier.align(Alignment.CenterHorizontally)) {
+            Box(
+                modifier = Modifier
+                    .size(88.dp)
+                    .clip(CircleShape)
+                    .background(CspColors.Blue)
+                    .clickable(enabled = !uploading) { launcher.launch() },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (!user.photoUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = user.photoUrl,
+                        contentDescription = "Photo de profil",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Text(
+                        initials,
+                        style = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.CyanInk),
+                    )
+                }
+                if (uploading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.45f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(28.dp),
+                            strokeWidth = 2.5.dp,
+                        )
+                    }
+                }
+            }
+            // Badge crayon
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(CspColors.Surface)
+                    .border(1.5.dp, CspColors.Line, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                IconPencil(tint = CspColors.Ink, modifier = Modifier.size(13.dp))
+            }
+        }
+
+        if (uploadError != null) {
+            Text(
+                uploadError!!,
+                style = TextStyle(fontSize = 13.sp, color = CspColors.Red),
+                modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
 

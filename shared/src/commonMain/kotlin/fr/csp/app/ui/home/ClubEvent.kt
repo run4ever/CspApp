@@ -12,6 +12,7 @@ data class ClubEvent(
     val status: EventStatus,
     val featured: Boolean = false,
     val participants: Int = 0,
+    val participantIds: List<String> = emptyList(),
     val dateSort: String = "",
     val location: String = "",
     val lat: Double? = null,

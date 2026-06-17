@@ -106,6 +106,7 @@ private fun DocumentSnapshot.toClubEvent(): ClubEvent? {
             },
             featured = featured,
             participants = participants,
+            participantIds = participantsArray,
             dateSort = localDate?.toString() ?: dateStr,
             location = location,
             lat = lat,

@@ -25,6 +25,8 @@ fun App(driverFactory: DatabaseDriverFactory) {
     var selectedEvent by remember { mutableStateOf<ClubEvent?>(null) }
     var editingEvent by remember { mutableStateOf<ClubEvent?>(null) }
     var showCreateEvent by remember { mutableStateOf(false) }
+    var homeTab by remember { mutableStateOf(0) }
+    var menuStartOnAuth by remember { mutableStateOf(false) }
 
     // Toujours utiliser la version live de l'événement (mise à jour Firestore en temps réel)
     val liveEvent = remember(selectedEvent?.id, events) {
@@ -43,10 +45,16 @@ fun App(driverFactory: DatabaseDriverFactory) {
             isAdmin = isAdmin,
             onEdit = { editingEvent = liveEvent },
             userCanComment = userDoc?.canComment ?: true,
+            userPhotoUrl = userDoc?.photoUrl,
+            onLogin = { selectedEvent = null; homeTab = 2; menuStartOnAuth = true },
         )
         else -> HomeScreen(
             onEventClick = { event -> selectedEvent = event },
             onCreateEvent = { showCreateEvent = true },
+            selectedTab = homeTab,
+            onTabSelected = { homeTab = it },
+            menuStartOnAuth = menuStartOnAuth,
+            onMenuAuthHandled = { menuStartOnAuth = false },
         )
     }
 }

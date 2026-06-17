@@ -28,6 +28,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.auth
 import dev.gitlive.firebase.firestore.firestore
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import fr.csp.app.ui.home.IconBack
 import fr.csp.app.ui.home.IconCheck
 import fr.csp.app.ui.home.IconComment
@@ -50,6 +52,7 @@ data class AdminUser(
     val status: String,
     val canComment: Boolean,
     val createdAt: Long,
+    val photoUrl: String? = null,
 )
 
 private enum class MemberFilter(val label: String) {
@@ -85,6 +88,7 @@ class AdminViewModel : ViewModel() {
                                 status = doc.get<String?>("status") ?: "",
                                 canComment = doc.get<Boolean?>("canComment") ?: true,
                                 createdAt = doc.get<Long?>("createdAt") ?: 0L,
+                                photoUrl = doc.get<String?>("photoUrl"),
                             )
                         } catch (_: Exception) { null }
                     }
@@ -466,10 +470,19 @@ private fun AdminUserCard(
                 modifier = Modifier.size(40.dp).clip(CircleShape).background(CspColors.Surface3),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    "${user.prenom.firstOrNull() ?: ""}${user.nom.firstOrNull() ?: ""}".uppercase(),
-                    style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.Muted),
-                )
+                if (!user.photoUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = user.photoUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Text(
+                        "${user.prenom.firstOrNull() ?: ""}${user.nom.firstOrNull() ?: ""}".uppercase(),
+                        style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.Muted),
+                    )
+                }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(

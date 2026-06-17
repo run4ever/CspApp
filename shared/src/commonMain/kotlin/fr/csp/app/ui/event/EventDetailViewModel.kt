@@ -10,7 +10,10 @@ import kotlinx.coroutines.flow.*
 class EventDetailViewModel(private val eventId: String) : ViewModel() {
 
     private val eventRef = Firebase.firestore.collection("events").document(eventId)
-    private val currentUid: Flow<String?> = Firebase.auth.authStateChanged.map { it?.uid }
+
+    val currentUid: StateFlow<String?> = Firebase.auth.authStateChanged
+        .map { it?.uid }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val participants: StateFlow<List<String>> = eventRef.snapshots
         .map { doc -> doc.get<List<String>?>("participants") ?: emptyList() }
@@ -23,6 +26,20 @@ class EventDetailViewModel(private val eventId: String) : ViewModel() {
     val isJoined: StateFlow<Boolean> = combine(currentUid, participants) { uid, parts ->
         uid != null && uid in parts
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val participantPhotos: StateFlow<Map<String, String?>> = participants
+        .flatMapLatest { uids ->
+            if (uids.isEmpty()) flowOf(emptyMap())
+            else flow {
+                emit(uids.associate { uid ->
+                    uid to try {
+                        Firebase.firestore.collection("users").document(uid).get()
+                            .get<String?>("photoUrl")
+                    } catch (_: Exception) { null }
+                })
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     suspend fun toggleParticipation(): String? = try {
         val uid = Firebase.auth.currentUser?.uid ?: return "Non connecté"

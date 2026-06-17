@@ -35,6 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.zIndex
+import coil3.compose.AsyncImage
 import fr.csp.app.ui.admin.AdminValidationScreen
 import fr.csp.app.ui.auth.AuthViewModel
 import fr.csp.app.ui.menu.MenuScreen
@@ -92,6 +95,7 @@ private fun AdminPendingBanner(count: Int, onClick: () -> Unit) {
 fun Greeting(
     prenom: String? = null,
     nom: String? = null,
+    photoUrl: String? = null,
     onAvatarClick: () -> Unit = {},
     onLoginClick: (() -> Unit)? = null,
 ) {
@@ -118,14 +122,23 @@ fun Greeting(
                 .clickable(onClick = onAvatarClick),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                initials,
-                style = TextStyle(
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = if (isLoggedIn) CspColors.CyanInk else CspColors.Muted,
-                ),
-            )
+            if (!photoUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = photoUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Text(
+                    initials,
+                    style = TextStyle(
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isLoggedIn) CspColors.CyanInk else CspColors.Muted,
+                    ),
+                )
+            }
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -159,7 +172,13 @@ fun Greeting(
 // ── Carte "Prochaine sortie" ──────────────────────────────────
 
 @Composable
-fun NextRideHero(event: ClubEvent, onClick: () -> Unit) {
+fun NextRideHero(
+    event: ClubEvent,
+    currentUid: String? = null,
+    photoUrlMap: Map<String, String?> = emptyMap(),
+    userPhotoUrl: String? = null,
+    onClick: () -> Unit,
+) {
     val heroGradient = Brush.linearGradient(listOf(CspColors.Red, CspColors.RedDeep))
     val textMeasurer = rememberTextMeasurer()
     Column(
@@ -227,9 +246,14 @@ fun NextRideHero(event: ClubEvent, onClick: () -> Unit) {
             Spacer(Modifier.height(14.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    AvatarStack(count = event.participants)
+                    AvatarStack(
+                        participantIds = event.participantIds,
+                        currentUid = currentUid,
+                        photoUrlMap = photoUrlMap,
+                        userPhotoUrl = userPhotoUrl,
+                    )
                     Spacer(Modifier.width(10.dp))
-                    Text("${event.participants} participants", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CspColors.CyanInk))
+                    Text("${event.participants} participant${if (event.participants >= 2) "s" else ""}", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CspColors.CyanInk))
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -248,26 +272,67 @@ fun NextRideHero(event: ClubEvent, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AvatarStack(count: Int) {
+private fun AvatarStack(
+    participantIds: List<String>,
+    currentUid: String?,
+    photoUrlMap: Map<String, String?>,
+    userPhotoUrl: String? = null,
+) {
     val shades = listOf(Color(0xFFCFD8DC), Color(0xFFB0BEC5), Color(0xFF90A4AE), Color(0xFF78909C), Color(0xFF607D8B))
-    val showOverflow = count > 5
-    val faceCount = if (showOverflow) 4 else count.coerceAtLeast(1)
-    val overflowN = count - 4
+    val isJoined = currentUid != null && currentUid in participantIds
+    val others = participantIds.filter { it != currentUid }
+    val maxSlots = if (isJoined) 4 else 5
+    val showOverflow = others.size > maxSlots
+    val visibleOthers = if (showOverflow) others.take(maxSlots - 1) else others
+    val overflowN = others.size - visibleOthers.size
     Row {
-        repeat(faceCount) { i ->
+        if (isJoined) {
             Box(
                 modifier = Modifier
-                    .offset(x = (-8 * i).dp)
+                    .zIndex(10f)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(CspColors.Red)
+                    .border(2.dp, CspColors.Blue, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                val photo = userPhotoUrl ?: photoUrlMap[currentUid]
+                if (!photo.isNullOrBlank()) {
+                    AsyncImage(
+                        model = photo,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+            }
+        }
+        visibleOthers.forEachIndexed { i, uid ->
+            val photo = photoUrlMap[uid]
+            Box(
+                modifier = Modifier
+                    .offset(x = (-(8 * (i + if (isJoined) 1 else 0))).dp)
+                    .zIndex((maxSlots - i).toFloat())
                     .size(28.dp)
                     .clip(CircleShape)
                     .background(shades[i.coerceAtMost(shades.lastIndex)])
                     .border(2.dp, CspColors.Blue, CircleShape),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                if (!photo.isNullOrBlank()) {
+                    AsyncImage(
+                        model = photo,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+            }
         }
         if (showOverflow) {
             Box(
                 modifier = Modifier
-                    .offset(x = (-8 * faceCount).dp)
+                    .offset(x = (-(8 * (visibleOthers.size + if (isJoined) 1 else 0))).dp)
                     .size(28.dp)
                     .clip(CircleShape)
                     .background(shades.last())
@@ -411,12 +476,21 @@ fun BottomNav(activeTab: Int = 0, onTabSelected: (Int) -> Unit = {}) {
 // ── Écran complet ─────────────────────────────────────────────
 
 @Composable
-fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Unit)? = null) {
+fun HomeScreen(
+    onEventClick: (ClubEvent) -> Unit = {},
+    onCreateEvent: (() -> Unit)? = null,
+    selectedTab: Int = 0,
+    onTabSelected: (Int) -> Unit = {},
+    menuStartOnAuth: Boolean = false,
+    onMenuAuthHandled: () -> Unit = {},
+) {
     val vm = viewModel { HomeViewModel() }
     val events by vm.events.collectAsStateWithLifecycle()
     val userDoc by vm.userDoc.collectAsStateWithLifecycle()
     val isAdmin by vm.isAdmin.collectAsStateWithLifecycle()
     val pendingCount by vm.pendingCount.collectAsStateWithLifecycle()
+    val currentUid by vm.currentUid.collectAsStateWithLifecycle()
+    val featuredParticipantPhotos by vm.featuredParticipantPhotos.collectAsStateWithLifecycle()
     val authVm = viewModel { AuthViewModel() }
     var showSignupBanner by remember { mutableStateOf(false) }
     var showAdminValidation by remember { mutableStateOf(false) }
@@ -435,8 +509,6 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Uni
     val afterFeatured = remember(future, featuredIndex) {
         if (featuredIndex >= 0) future.drop(featuredIndex + 1) else future
     }
-    var selectedTab by remember { mutableStateOf(0) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -467,8 +539,9 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Uni
                     Greeting(
                         prenom = userDoc?.prenom,
                         nom = userDoc?.nom,
-                        onAvatarClick = { selectedTab = 2 },
-                        onLoginClick = if (userDoc?.status != "VALIDATED") { { selectedTab = 2 } } else null,
+                        photoUrl = userDoc?.photoUrl,
+                        onAvatarClick = { onTabSelected(2) },
+                        onLoginClick = if (userDoc?.status != "VALIDATED") { { onTabSelected(2) } } else null,
                     )
                     cancelledBefore.forEachIndexed { index, event ->
                         AgendaItem(
@@ -479,7 +552,13 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Uni
                     }
                     if (featured != null) {
                         if (cancelledBefore.isNotEmpty()) Spacer(Modifier.height(16.dp))
-                        NextRideHero(event = featured, onClick = { onEventClick(featured) })
+                        NextRideHero(
+                            event = featured,
+                            currentUid = currentUid,
+                            photoUrlMap = featuredParticipantPhotos,
+                            userPhotoUrl = userDoc?.photoUrl,
+                            onClick = { onEventClick(featured) },
+                        )
                     }
                     if (afterFeatured.isNotEmpty()) {
                         Spacer(Modifier.height(24.dp))
@@ -519,14 +598,16 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Uni
                     userDoc = userDoc,
                     isAdmin = isAdmin,
                     authVm = authVm,
-                    onClose = { selectedTab = 0 },
+                    onClose = { onTabSelected(0) },
                     onMemberManagement = { showAdminValidation = true },
-                    onSignOut = { selectedTab = 0 },
-                    onLoginSuccess = { selectedTab = 0 },
-                    onSignupSuccess = { showSignupBanner = true; selectedTab = 0 },
+                    onSignOut = { onTabSelected(0) },
+                    onLoginSuccess = { onTabSelected(0) },
+                    onSignupSuccess = { showSignupBanner = true; onTabSelected(0) },
+                    startOnAuth = menuStartOnAuth,
+                    onAuthStartHandled = onMenuAuthHandled,
                 )
             }
         }
-        BottomNav(activeTab = selectedTab, onTabSelected = { selectedTab = it; showAdminValidation = false })
+        BottomNav(activeTab = selectedTab, onTabSelected = { onTabSelected(it); showAdminValidation = false })
     }
 }

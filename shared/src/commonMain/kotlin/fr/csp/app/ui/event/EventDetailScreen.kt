@@ -38,6 +38,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import coil3.compose.AsyncImage
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -164,7 +165,7 @@ private fun SectionTitle(title: String, count: Int? = null, action: String? = nu
 }
 
 @Composable
-private fun AvatarCircle(initials: String, isYou: Boolean = false, modifier: Modifier = Modifier) {
+private fun AvatarCircle(initials: String, isYou: Boolean = false, photoUrl: String? = null, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(40.dp)
@@ -173,14 +174,23 @@ private fun AvatarCircle(initials: String, isYou: Boolean = false, modifier: Mod
             .border(2.dp, CspColors.Bg, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            initials,
-            style = TextStyle(
-                fontSize = if (isYou) 13.sp else 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (isYou) Color(0xFF08252E) else CspColors.Ink,
-            ),
-        )
+        if (!photoUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = photoUrl,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Text(
+                initials,
+                style = TextStyle(
+                    fontSize = if (isYou) 13.sp else 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isYou) Color(0xFF08252E) else CspColors.Ink,
+                ),
+            )
+        }
     }
 }
 
@@ -188,15 +198,21 @@ private fun nameInitials(name: String) =
     name.split(" ").filter { it.isNotBlank() }.mapNotNull { it.firstOrNull()?.uppercaseChar() }.take(2).joinToString("")
 
 @Composable
-private fun ParticipantAvatars(joined: Boolean, count: Int) {
+private fun ParticipantAvatars(
+    participantIds: List<String>,
+    currentUid: String?,
+    photoUrlMap: Map<String, String?>,
+    userPhotoUrl: String? = null,
+) {
     val shades = listOf(Color(0xFFCFD8DC), Color(0xFFB0BEC5), Color(0xFF90A4AE), Color(0xFF78909C), Color(0xFF607D8B))
-    val greyTotal = if (joined) (count - 1).coerceAtLeast(0) else count
-    val greySlots = if (joined) 4 else 5
-    val showOverflow = greyTotal > greySlots
-    val greyFaces = if (greyTotal == 0) 0 else if (showOverflow) greySlots - 1 else greyTotal
-    val overflowN = greyTotal - greyFaces
+    val isJoined = currentUid != null && currentUid in participantIds
+    val others = participantIds.filter { it != currentUid }
+    val maxOtherSlots = if (isJoined) 4 else 5
+    val showOverflow = others.size > maxOtherSlots
+    val visibleOthers = if (showOverflow) others.take(maxOtherSlots - 1) else others
+    val overflowN = others.size - visibleOthers.size
 
-    if (count == 0 && !joined) {
+    if (participantIds.isEmpty()) {
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -206,19 +222,35 @@ private fun ParticipantAvatars(joined: Boolean, count: Int) {
         )
     } else {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (joined) {
-                AvatarCircle("Moi", isYou = true, modifier = Modifier.zIndex(6f))
+            if (isJoined) {
+                AvatarCircle(
+                    initials = "Moi",
+                    isYou = true,
+                    photoUrl = userPhotoUrl ?: photoUrlMap[currentUid],
+                    modifier = Modifier.zIndex(6f),
+                )
             }
-            repeat(greyFaces) { i ->
+            visibleOthers.forEachIndexed { i, uid ->
+                val photo = photoUrlMap[uid]
                 Box(
                     modifier = Modifier
-                        .offset(x = if (i > 0 || joined) (-12).dp else 0.dp)
-                        .zIndex((greySlots - i).toFloat())
+                        .offset(x = if (i > 0 || isJoined) (-12).dp else 0.dp)
+                        .zIndex((maxOtherSlots - i).toFloat())
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(shades[i.coerceAtMost(shades.lastIndex)])
                         .border(2.dp, CspColors.Bg, CircleShape),
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (!photo.isNullOrBlank()) {
+                        AsyncImage(
+                            model = photo,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+                    }
+                }
             }
             if (showOverflow) {
                 Box(
@@ -335,7 +367,7 @@ private fun CommentItem(comment: FirestoreComment, canDelete: Boolean = false, o
         horizontalArrangement = Arrangement.spacedBy(11.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        AvatarCircle(initials = nameInitials(comment.authorName).ifEmpty { "?" }, modifier = Modifier.size(36.dp))
+        AvatarCircle(initials = nameInitials(comment.authorName).ifEmpty { "?" }, photoUrl = comment.authorPhotoUrl, modifier = Modifier.size(36.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(comment.authorName, style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink))
@@ -419,12 +451,16 @@ private fun MarkdownBlock(
 
 // ── Écran principal ───────────────────────────────────────────
 
+private enum class LoginPrompt { PARTICIPATE, COMMENT }
+
 @Composable
-fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = false, onEdit: (() -> Unit)? = null, userCanComment: Boolean = true) {
+fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = false, onEdit: (() -> Unit)? = null, userCanComment: Boolean = true, userPhotoUrl: String? = null, onLogin: (() -> Unit)? = null) {
     val vm = viewModel(key = event.id) { EventDetailViewModel(event.id) }
     val participants by vm.participants.collectAsStateWithLifecycle()
+    val currentUid by vm.currentUid.collectAsStateWithLifecycle()
     val isJoined by vm.isJoined.collectAsStateWithLifecycle()
     val isLoggedIn by vm.isLoggedIn.collectAsStateWithLifecycle()
+    val participantPhotos by vm.participantPhotos.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     val commentRepo = remember { CommentRepository() }
@@ -461,12 +497,12 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
         commentText = ""
         scope.launch {
             val name = resolveUserName()
-            commentRepo.addComment(event.id, t, uid, name)
+            commentRepo.addComment(event.id, t, uid, name, userPhotoUrl)
         }
     }
 
     val cancelled = event.status == EventStatus.CANCELLED
-    var showLoginDialog by remember { mutableStateOf(false) }
+    var loginPrompt by remember { mutableStateOf<LoginPrompt?>(null) }
     var expanded by remember { mutableStateOf(false) }
 
     val participantCount = participants.size
@@ -582,11 +618,16 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
                 // C : Participants
                 Spacer(Modifier.height(18.dp))
                 Text(
-                    "$participantCount Participants",
+                    "$participantCount Participant${if (participantCount >= 2) "s" else ""}",
                     style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Muted),
                 )
                 Spacer(Modifier.height(10.dp))
-                ParticipantAvatars(joined = isJoined, count = participantCount)
+                ParticipantAvatars(
+                    participantIds = participants,
+                    currentUid = currentUid,
+                    photoUrlMap = participantPhotos,
+                    userPhotoUrl = userPhotoUrl,
+                )
 
                 // D : Programme
                 if (event.description.isNotBlank()) {
@@ -676,60 +717,74 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
                         )
                     }
                 } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        AvatarCircle(
-                            initials = nameInitials(currentUserName).ifEmpty { "Moi" },
-                            isYou = true,
-                            modifier = Modifier.size(36.dp),
-                        )
+                    Box {
                         Row(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(CspColors.Surface)
-                                .border(1.dp, CspColors.Line, RoundedCornerShape(999.dp))
-                                .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            BasicTextField(
-                                value = commentText,
-                                onValueChange = { commentText = it },
-                                modifier = Modifier.weight(1f),
-                                textStyle = TextStyle(fontSize = 14.sp, color = CspColors.Ink),
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                                keyboardActions = KeyboardActions(onSend = { sendComment() }),
-                                decorationBox = { inner ->
-                                    Box {
-                                        if (commentText.isEmpty()) {
-                                            Text(
-                                                "Laissez un commentaire…",
-                                                style = TextStyle(fontSize = 14.sp, color = CspColors.Muted2),
-                                            )
-                                        }
-                                        inner()
-                                    }
-                                },
+                            AvatarCircle(
+                                initials = nameInitials(currentUserName).ifEmpty { "Moi" },
+                                isYou = true,
+                                photoUrl = userPhotoUrl,
+                                modifier = Modifier.size(36.dp),
                             )
-                            val hasText = commentText.isNotBlank()
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(CspColors.Surface)
+                                    .border(1.dp, CspColors.Line, RoundedCornerShape(999.dp))
+                                    .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                BasicTextField(
+                                    value = commentText,
+                                    onValueChange = { commentText = it },
+                                    modifier = Modifier.weight(1f),
+                                    textStyle = TextStyle(fontSize = 14.sp, color = CspColors.Ink),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                    keyboardActions = KeyboardActions(onSend = { sendComment() }),
+                                    decorationBox = { inner ->
+                                        Box {
+                                            if (commentText.isEmpty()) {
+                                                Text(
+                                                    "Laissez un commentaire…",
+                                                    style = TextStyle(fontSize = 14.sp, color = CspColors.Muted2),
+                                                )
+                                            }
+                                            inner()
+                                        }
+                                    },
+                                )
+                                val hasText = commentText.isNotBlank()
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(if (hasText) CspColors.Red else CspColors.Surface3)
+                                        .clickable { sendComment() },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    IconSend(
+                                        tint = if (hasText) Color.White else CspColors.Muted,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
+                            }
+                        }
+                        // Overlay transparent quand déconnecté — intercepte les clics
+                        if (isLoggedIn != true) {
                             Box(
                                 modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
-                                    .background(if (hasText) CspColors.Red else CspColors.Surface3)
-                                    .clickable { sendComment() },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                IconSend(
-                                    tint = if (hasText) Color.White else CspColors.Muted,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
+                                    .matchParentSize()
+                                    .clickable(
+                                        indication = null,
+                                        interactionSource = remember { MutableInteractionSource() },
+                                    ) { loginPrompt = LoginPrompt.COMMENT },
+                            )
                         }
                     }
                 }
@@ -776,7 +831,7 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
                             if (isLoggedIn == true) {
                                 scope.launch { vm.toggleParticipation() }
                             } else {
-                                showLoginDialog = true
+                                loginPrompt = LoginPrompt.PARTICIPATE
                             }
                         }
                         .padding(15.dp),
@@ -805,7 +860,7 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
     } // fin Column principal
 
     // ── Dialog : connexion requise ────────────────────────────
-    if (showLoginDialog) {
+    if (loginPrompt != null) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -813,7 +868,7 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },
-                ) { showLoginDialog = false },
+                ) { loginPrompt = null },
             contentAlignment = Alignment.Center,
         ) {
             Column(
@@ -830,29 +885,57 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
                     .padding(22.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    "Venez comme vous êtes 😊",
-                    style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
-                )
-                Text(
-                    "Vous devez être connecté.e pour signaler votre présence à l'évènement. " +
-                        "Si vous n'êtes pas encore adhérent.e au club, n'hésitez pas à venir à l'une de nos sorties " +
-                        "sans prévenir, vous êtes bienvenu.e !",
-                    style = TextStyle(fontSize = 14.sp, color = CspColors.Ink2, lineHeight = (14 * 1.6).sp),
-                )
+                if (loginPrompt == LoginPrompt.PARTICIPATE) {
+                    Text(
+                        "Venez comme vous êtes 😊",
+                        style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+                    )
+                    Text(
+                        "Vous devez être connecté.e pour signaler votre présence à l'évènement. " +
+                            "Si vous n'êtes pas encore adhérent.e au club, n'hésitez pas à venir à l'une de nos sorties " +
+                            "sans prévenir, vous êtes bienvenu.e !",
+                        style = TextStyle(fontSize = 14.sp, color = CspColors.Ink2, lineHeight = (14 * 1.6).sp),
+                    )
+                } else {
+                    Text(
+                        "Connexion requise",
+                        style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+                    )
+                    Text(
+                        "Vous devez être connecté.e pour commenter les sorties du CSP.",
+                        style = TextStyle(fontSize = 14.sp, color = CspColors.Ink2, lineHeight = (14 * 1.6).sp),
+                    )
+                }
                 Spacer(Modifier.height(4.dp))
+                if (onLogin != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CspColors.Red)
+                            .clickable { loginPrompt = null; onLogin() }
+                            .padding(14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Me connecter",
+                            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White),
+                        )
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(CspColors.Red)
-                        .clickable { showLoginDialog = false }
+                        .background(CspColors.Surface3)
+                        .border(1.dp, CspColors.Line, RoundedCornerShape(12.dp))
+                        .clickable { loginPrompt = null }
                         .padding(14.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "Compris !",
-                        style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White),
+                        style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink2),
                     )
                 }
             }

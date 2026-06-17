@@ -158,6 +158,8 @@ fun AuthScreen(vm: AuthViewModel, onLoginSuccess: () -> Unit = {}, onSignupSucce
     var dateNaissance by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var resetMessage by remember { mutableStateOf<String?>(null) }
+    var resetSending by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -228,17 +230,42 @@ fun AuthScreen(vm: AuthViewModel, onLoginSuccess: () -> Unit = {}, onSignupSucce
                 placeholder = "••••••••",
                 isPassword = true,
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp, bottom = 22.dp),
-                contentAlignment = Alignment.CenterEnd,
-            ) {
-                Text(
-                    "Mot de passe oublié ?",
-                    style = TextStyle(fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = CspColors.Blue),
-                    modifier = Modifier.clickable { },
-                )
+            Column(modifier = Modifier.padding(top = 10.dp, bottom = 22.dp)) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                    Text(
+                        if (resetSending) "Envoi…" else "Mot de passe oublié ?",
+                        style = TextStyle(
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (resetSending) CspColors.Muted else CspColors.Blue,
+                        ),
+                        modifier = Modifier.clickable(enabled = !resetSending) {
+                            if (email.isBlank()) {
+                                resetMessage = "⚠ Saisissez votre e-mail ci-dessus."
+                            } else {
+                                resetMessage = null
+                                resetSending = true
+                                scope.launch {
+                                    val err = vm.sendPasswordReset(email)
+                                    resetMessage = err
+                                        ?: "✓ Un e-mail de réinitialisation a été envoyé à $email."
+                                    resetSending = false
+                                }
+                            }
+                        },
+                    )
+                }
+                if (resetMessage != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        resetMessage!!,
+                        style = TextStyle(
+                            fontSize = 13.sp,
+                            color = if (resetMessage!!.startsWith("✓")) CspColors.Green else CspColors.Red,
+                            lineHeight = (13 * 1.5).sp,
+                        ),
+                    )
+                }
             }
         } else {
             // ── Inscription ───────────────────────────────────

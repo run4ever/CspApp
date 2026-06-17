@@ -20,6 +20,13 @@ class AuthViewModel : ViewModel() {
 
     suspend fun signOut() = auth.signOut()
 
+    suspend fun sendPasswordReset(email: String): String? = try {
+        auth.sendPasswordResetEmail(email)
+        null
+    } catch (e: Exception) {
+        e.message?.toFriendlyAuthError() ?: "Erreur lors de l'envoi"
+    }
+
     suspend fun signIn(email: String, password: String): String? = try {
         auth.signInWithEmailAndPassword(email, password)
         null
