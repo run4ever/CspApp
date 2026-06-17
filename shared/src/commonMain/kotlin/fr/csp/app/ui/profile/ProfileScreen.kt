@@ -244,6 +244,7 @@ private fun CreateEventForm(initialEvent: ClubEvent? = null, onDone: (() -> Unit
     var savingFavorite by remember { mutableStateOf(false) }
     var favoriteName by remember { mutableStateOf("") }
     var favoriteSaved by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf(initialEvent?.status?.name ?: "OPEN") }
     var isRecurring by remember { mutableStateOf(false) }
     var repeatUntil by remember { mutableStateOf("") }
     var showRepeatDatePicker by remember { mutableStateOf(false) }
@@ -306,6 +307,36 @@ private fun CreateEventForm(initialEvent: ClubEvent? = null, onDone: (() -> Unit
             placeholder = "Programme, infos pratiques… (Markdown : **gras**, - liste)",
             onValueChange = { description = it; feedback = null },
         )
+
+        if (isEditing) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Statut", style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CspColors.Muted))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("OPEN" to "Ouvert", "CANCELLED" to "Annulé", "FULL" to "Complet").forEach { (value, label) ->
+                        val selected = status == value
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selected) when (value) { "CANCELLED" -> CspColors.Red; "FULL" -> CspColors.Surface3; else -> CspColors.Green } else CspColors.Surface)
+                                .border(1.dp, if (selected) when (value) { "CANCELLED" -> CspColors.Red; "FULL" -> CspColors.Line; else -> CspColors.Green } else CspColors.Line, RoundedCornerShape(10.dp))
+                                .clickable { status = value }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                label,
+                                style = TextStyle(
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (selected) when (value) { "FULL" -> CspColors.Ink; else -> Color.White } else CspColors.Muted,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(modifier = Modifier.weight(1f)) {
@@ -674,6 +705,7 @@ private fun CreateEventForm(initialEvent: ClubEvent? = null, onDone: (() -> Unit
                                         lon = locationLon,
                                         description = description,
                                         traceIds = selectedTraceIds,
+                                        status = status,
                                     )
                                     feedback = "✓ Événement modifié"
                                 }

@@ -390,11 +390,12 @@ private fun AvatarStack(
 // ── Ligne agenda / timeline ───────────────────────────────────
 
 @Composable
-fun AgendaItem(event: ClubEvent, isLast: Boolean, onClick: () -> Unit) {
+fun AgendaItem(event: ClubEvent, isLast: Boolean, onClick: () -> Unit, isAdmin: Boolean = false) {
     val cancelled = event.status == EventStatus.CANCELLED
+    val clickable = !cancelled || isAdmin
     Row(
         modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
-            .then(if (!cancelled) Modifier.clickable(onClick = onClick) else Modifier),
+            .then(if (clickable) Modifier.clickable(onClick = onClick) else Modifier),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         // Colonne date
@@ -462,7 +463,7 @@ fun AgendaItem(event: ClubEvent, isLast: Boolean, onClick: () -> Unit) {
                     }
                 }
             }
-            if (!cancelled) {
+            if (clickable) {
                 IconChevronRight(tint = CspColors.Muted2, modifier = Modifier.size(17.dp))
             }
         }
@@ -593,6 +594,7 @@ fun HomeScreen(
                             event = event,
                             isLast = index == cancelledBefore.lastIndex && featured == null,
                             onClick = { onEventClick(event) },
+                            isAdmin = isAdmin,
                         )
                     }
                     if (featured != null) {
@@ -635,6 +637,7 @@ fun HomeScreen(
                                 event = event,
                                 isLast = index == afterFeatured.lastIndex,
                                 onClick = { onEventClick(event) },
+                                isAdmin = isAdmin,
                             )
                         }
                     }

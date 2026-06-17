@@ -33,6 +33,7 @@ class EventRepository {
         lon: Double? = null,
         description: String = "",
         traceIds: List<String> = emptyList(),
+        status: String = "OPEN",
     ) {
         db.collection("events").document(id).set(
             buildMap<String, Any?> {
@@ -45,6 +46,7 @@ class EventRepository {
                 put("lat", lat)
                 put("lon", lon)
                 put("traceIds", traceIds)
+                put("status", status)
             },
             merge = true,
         )
