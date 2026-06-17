@@ -439,3 +439,70 @@ fun IconUserCog(slashed: Boolean = false, tint: Color, modifier: Modifier = Modi
         }
     }
 }
+
+@Composable
+fun IconMilestone(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val sign = Path().apply {
+            moveTo(s(18f), s(6f))
+            lineTo(s(5f), s(6f))
+            arcTo(Rect(Offset(s(3f), s(6f)), Size(s(4f), s(4f))), 270f, -90f, false)
+            lineTo(s(3f), s(11f))
+            arcTo(Rect(Offset(s(3f), s(9f)), Size(s(4f), s(4f))), 180f, -90f, false)
+            lineTo(s(18f), s(13f))
+            lineTo(s(22f), s(9.5f))
+            close()
+        }
+        drawPath(sign, color = tint, style = st)
+        val pole = Path().apply {
+            moveTo(s(12f), s(3f))
+            lineTo(s(12f), s(6f))
+            moveTo(s(12f), s(13f))
+            lineTo(s(12f), s(21f))
+        }
+        drawPath(pole, color = tint, style = st)
+    }
+}
+
+@Composable
+fun IconElevUp(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val path = Path().apply {
+            moveTo(s(3f), s(17f))
+            lineTo(s(9f), s(9f))
+            lineTo(s(14f), s(13f))
+            lineTo(s(21f), s(4f))
+        }
+        drawPath(path, color = tint, style = st)
+        val arrow = Path().apply {
+            moveTo(s(21f), s(4f))
+            lineTo(s(16f), s(4f))
+            moveTo(s(21f), s(4f))
+            lineTo(s(21f), s(9f))
+        }
+        drawPath(arrow, color = tint, style = st)
+    }
+}
+
+@Composable
+fun IconElevDown(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val path = Path().apply {
+            moveTo(s(3f), s(7f))
+            lineTo(s(9f), s(15f))
+            lineTo(s(14f), s(11f))
+            lineTo(s(21f), s(20f))
+        }
+        drawPath(path, color = tint, style = st)
+        val arrow = Path().apply {
+            moveTo(s(21f), s(20f))
+            lineTo(s(16f), s(20f))
+            moveTo(s(21f), s(20f))
+            lineTo(s(21f), s(15f))
+        }
+        drawPath(arrow, color = tint, style = st)
+    }
+}

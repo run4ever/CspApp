@@ -43,6 +43,7 @@ import fr.csp.app.ui.auth.AuthViewModel
 import fr.csp.app.ui.menu.MenuScreen
 import fr.csp.app.ui.shop.ShopScreen
 import fr.csp.app.ui.theme.CspColors
+import fr.csp.app.ui.trace.TraceScreen
 
 // ── Bannières ─────────────────────────────────────────────────
 
@@ -445,8 +446,9 @@ fun BottomNav(activeTab: Int = 0, onTabSelected: (Int) -> Unit = {}) {
     data class Tab(val label: String, val index: Int, val icon: @Composable (Color, Modifier) -> Unit)
     val tabs = listOf(
         Tab("Accueil", 0) { c, m -> IconHome(c, m) },
-        Tab("Boutique", 1) { c, m -> IconShop(c, m) },
-        Tab("Menu", 2) { c, m -> IconMenu(c, m) },
+        Tab("Traces", 1) { c, m -> IconRoute(c, m) },
+        Tab("Boutique", 2) { c, m -> IconShop(c, m) },
+        Tab("Menu", 3) { c, m -> IconMenu(c, m) },
     )
     Row(
         modifier = Modifier
@@ -483,6 +485,7 @@ fun HomeScreen(
     onTabSelected: (Int) -> Unit = {},
     menuStartOnAuth: Boolean = false,
     onMenuAuthHandled: () -> Unit = {},
+    onLoginRequest: () -> Unit = {},
 ) {
     val vm = viewModel { HomeViewModel() }
     val events by vm.events.collectAsStateWithLifecycle()
@@ -540,8 +543,8 @@ fun HomeScreen(
                         prenom = userDoc?.prenom,
                         nom = userDoc?.nom,
                         photoUrl = userDoc?.photoUrl,
-                        onAvatarClick = { onTabSelected(2) },
-                        onLoginClick = if (userDoc?.status != "VALIDATED") { { onTabSelected(2) } } else null,
+                        onAvatarClick = { onTabSelected(3) },
+                        onLoginClick = if (userDoc?.status != "VALIDATED") { { onTabSelected(3) } } else null,
                     )
                     cancelledBefore.forEachIndexed { index, event ->
                         AgendaItem(
@@ -593,8 +596,13 @@ fun HomeScreen(
                         }
                     }
                 }
-                1 -> ShopScreen()
-                2 -> MenuScreen(
+                1 -> TraceScreen(
+                    isAdmin = isAdmin,
+                    isLoggedIn = userDoc?.status == "VALIDATED",
+                    onLogin = onLoginRequest,
+                )
+                2 -> ShopScreen()
+                3 -> MenuScreen(
                     userDoc = userDoc,
                     isAdmin = isAdmin,
                     authVm = authVm,

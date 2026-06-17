@@ -46,7 +46,7 @@ fun App(driverFactory: DatabaseDriverFactory) {
             onEdit = { editingEvent = liveEvent },
             userCanComment = userDoc?.canComment ?: true,
             userPhotoUrl = userDoc?.photoUrl,
-            onLogin = { selectedEvent = null; homeTab = 2; menuStartOnAuth = true },
+            onLogin = { selectedEvent = null; homeTab = 3; menuStartOnAuth = true },
         )
         else -> HomeScreen(
             onEventClick = { event -> selectedEvent = event },
@@ -55,6 +55,7 @@ fun App(driverFactory: DatabaseDriverFactory) {
             onTabSelected = { homeTab = it },
             menuStartOnAuth = menuStartOnAuth,
             onMenuAuthHandled = { menuStartOnAuth = false },
+            onLoginRequest = { homeTab = 3; menuStartOnAuth = true },
         )
     }
 }
