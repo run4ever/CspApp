@@ -61,6 +61,21 @@ class HomeViewModel : ViewModel() {
             .map { it.documents.size }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
+    val featuredParticipantGroups: StateFlow<Map<String, String>> = events
+        .flatMapLatest { eventList ->
+            val today = currentDateIso()
+            val featured = eventList
+                .filter { it.dateSort.isEmpty() || it.dateSort >= today }
+                .firstOrNull { it.status != EventStatus.CANCELLED }
+            if (featured == null) flowOf(emptyMap())
+            else Firebase.firestore.collection("events").document(featured.id).snapshots
+                .map { doc ->
+                    try { doc.get<Map<String, String>?>("participantGroups") ?: emptyMap() }
+                    catch (_: Exception) { emptyMap() }
+                }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     val featuredParticipantPhotos: StateFlow<Map<String, String?>> = events
         .flatMapLatest { eventList ->
             val today = currentDateIso()

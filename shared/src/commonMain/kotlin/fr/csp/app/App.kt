@@ -32,9 +32,14 @@ fun App(driverFactory: DatabaseDriverFactory) {
     val liveEvent = remember(selectedEvent?.id, events) {
         selectedEvent?.let { sel -> events.find { it.id == sel.id } ?: sel }
     }
+    val currentIndex = remember(selectedEvent?.id, events) {
+        events.indexOfFirst { it.id == selectedEvent?.id }
+    }
+    val prevEvent = remember(currentIndex, events) { if (currentIndex > 0) events[currentIndex - 1] else null }
+    val nextEvent = remember(currentIndex, events) { if (currentIndex < events.lastIndex) events[currentIndex + 1] else null }
 
     when {
-        showCreateEvent -> ProfileScreen(onBack = { showCreateEvent = false })
+        showCreateEvent -> ProfileScreen(onBack = { showCreateEvent = false; homeTab = 0 })
         editingEvent != null -> EditEventScreen(
             event = editingEvent!!,
             onDone = { editingEvent = null },
@@ -44,6 +49,9 @@ fun App(driverFactory: DatabaseDriverFactory) {
             onBack = { selectedEvent = null },
             isAdmin = isAdmin,
             onEdit = { editingEvent = liveEvent },
+            onDelete = { selectedEvent = null; homeTab = 0 },
+            onPrevious = prevEvent?.let { prev -> { selectedEvent = prev } },
+            onNext = nextEvent?.let { next -> { selectedEvent = next } },
             userCanComment = userDoc?.canComment ?: true,
             userPhotoUrl = userDoc?.photoUrl,
             onLogin = { selectedEvent = null; homeTab = 3; menuStartOnAuth = true },

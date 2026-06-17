@@ -173,10 +173,29 @@ fun Greeting(
 // ── Carte "Prochaine sortie" ──────────────────────────────────
 
 @Composable
+private fun HeroGroupBadge(group: String) {
+    val bg = when (group) {
+        "G1" -> CspColors.Red
+        "G2" -> Color(0xFF111111)
+        else -> Color.White
+    }
+    val fg = if (group == "G3") Color(0xFF0D0F11) else Color.White
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(bg)
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+    ) {
+        Text(group, style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Black, color = fg))
+    }
+}
+
+@Composable
 fun NextRideHero(
     event: ClubEvent,
     currentUid: String? = null,
     photoUrlMap: Map<String, String?> = emptyMap(),
+    participantGroups: Map<String, String> = emptyMap(),
     userPhotoUrl: String? = null,
     onClick: () -> Unit,
 ) {
@@ -228,6 +247,7 @@ fun NextRideHero(
         }
 
         // Bas cyan
+        val isHebdo = event.type == "Sortie hebdo CSP"
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -266,6 +286,27 @@ fun NextRideHero(
                 ) {
                     Text("Voir", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.RedDeep))
                     IconChevronRight(tint = CspColors.RedDeep, modifier = Modifier.size(14.dp), strokeWidth = 2.4f)
+                }
+            }
+            // Badges groupes pour les sorties hebdo
+            if (isHebdo && participantGroups.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    listOf("G1", "G2", "G3").forEach { g ->
+                        val n = participantGroups.values.count { it == g }
+                        if (n > 0) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            ) {
+                                HeroGroupBadge(g)
+                                Text("$n", style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CspColors.CyanInk))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -494,6 +535,7 @@ fun HomeScreen(
     val pendingCount by vm.pendingCount.collectAsStateWithLifecycle()
     val currentUid by vm.currentUid.collectAsStateWithLifecycle()
     val featuredParticipantPhotos by vm.featuredParticipantPhotos.collectAsStateWithLifecycle()
+    val featuredParticipantGroups by vm.featuredParticipantGroups.collectAsStateWithLifecycle()
     val authVm = viewModel { AuthViewModel() }
     var showSignupBanner by remember { mutableStateOf(false) }
     var showAdminValidation by remember { mutableStateOf(false) }
@@ -559,6 +601,7 @@ fun HomeScreen(
                             event = featured,
                             currentUid = currentUid,
                             photoUrlMap = featuredParticipantPhotos,
+                            participantGroups = featuredParticipantGroups,
                             userPhotoUrl = userDoc?.photoUrl,
                             onClick = { onEventClick(featured) },
                         )

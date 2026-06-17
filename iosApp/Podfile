@@ -11,4 +11,5 @@ target 'iosApp' do
 
   pod 'FirebaseAuth'
   pod 'FirebaseFirestore'
+  pod 'FirebaseStorage'
 end

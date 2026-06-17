@@ -26,15 +26,21 @@ import kotlinx.datetime.toLocalDateTime
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.gitlive.firebase.Firebase
+import dev.gitlive.firebase.firestore.firestore
 import fr.csp.app.data.EventRepository
 import fr.csp.app.data.FavoriteLocation
 import fr.csp.app.data.FavoriteRepository
+import fr.csp.app.data.TraceRepository
+import fr.csp.app.ui.trace.Trace
+import fr.csp.app.ui.trace.formatKm
 import fr.csp.app.data.LocationSuggestion
 import fr.csp.app.data.NominatimService
 import fr.csp.app.ui.frenchCalendarLocale
@@ -99,13 +105,83 @@ fun ProfileScreen(onBack: () -> Unit) {
                 style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
             )
         }
-        CreateEventForm()
+        CreateEventForm(onDone = onBack)
         Spacer(Modifier.height(40.dp))
     }
 }
 
 @Composable
 fun EditEventScreen(event: ClubEvent, onDone: () -> Unit) {
+    var editScope by remember { mutableStateOf<EditScope?>(null) }
+
+    // Si l'événement appartient à une série, demander la portée avant d'afficher le formulaire
+    if (event.seriesId != null && editScope == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(CspColors.Bg)
+                .systemBarsPadding(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 28.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(CspColors.Surface2)
+                    .border(1.dp, CspColors.Line, RoundedCornerShape(20.dp))
+                    .padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Modifier la série",
+                    style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+                )
+                Text(
+                    "Cet événement fait partie d'une série. Que souhaitez-vous modifier ?",
+                    style = TextStyle(fontSize = 14.sp, color = CspColors.Ink2, lineHeight = (14 * 1.5).sp),
+                )
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CspColors.Red)
+                        .clickable { editScope = EditScope.SERIES }
+                        .padding(14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Cet événement et les suivants", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White))
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CspColors.Surface3)
+                        .border(1.dp, CspColors.Line, RoundedCornerShape(12.dp))
+                        .clickable { editScope = EditScope.SINGLE }
+                        .padding(14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Cet événement uniquement", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink2))
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CspColors.Surface3)
+                        .border(1.dp, CspColors.Line, RoundedCornerShape(12.dp))
+                        .clickable { onDone() }
+                        .padding(14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Annuler", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CspColors.Muted))
+                }
+            }
+        }
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -123,19 +199,33 @@ fun EditEventScreen(event: ClubEvent, onDone: () -> Unit) {
             Box(modifier = Modifier.clickable(onClick = onDone).padding(4.dp)) {
                 IconBack(tint = CspColors.Ink, modifier = Modifier.size(22.dp))
             }
-            Text(
-                "Modifier l'événement",
-                style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
-            )
+            Column {
+                Text(
+                    "Modifier l'événement",
+                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+                )
+                if (editScope == EditScope.SERIES) {
+                    Text(
+                        "Cet événement et les suivants seront modifiés",
+                        style = TextStyle(fontSize = 12.sp, color = CspColors.Red, fontWeight = FontWeight.SemiBold),
+                    )
+                }
+            }
         }
-        CreateEventForm(initialEvent = event, onDone = onDone)
+        CreateEventForm(
+            initialEvent = event,
+            onDone = onDone,
+            seriesScope = editScope,
+        )
         Spacer(Modifier.height(40.dp))
     }
 }
 
+private enum class EditScope { SINGLE, SERIES }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CreateEventForm(initialEvent: ClubEvent? = null, onDone: (() -> Unit)? = null) {
+private fun CreateEventForm(initialEvent: ClubEvent? = null, onDone: (() -> Unit)? = null, seriesScope: EditScope? = null) {
     val isEditing = initialEvent != null
     val initDate = remember { initialEvent?.let { dateSortToFr(it.dateSort) } ?: "" }
     val initTime = remember { initialEvent?.time?.let { parseTimeFr(it) } }
@@ -154,20 +244,56 @@ private fun CreateEventForm(initialEvent: ClubEvent? = null, onDone: (() -> Unit
     var savingFavorite by remember { mutableStateOf(false) }
     var favoriteName by remember { mutableStateOf("") }
     var favoriteSaved by remember { mutableStateOf(false) }
+    var isRecurring by remember { mutableStateOf(false) }
+    var repeatUntil by remember { mutableStateOf("") }
+    var showRepeatDatePicker by remember { mutableStateOf(false) }
+    val repeatDatePickerState = remember { DatePickerState(locale = frenchCalendarLocale(), initialSelectedDateMillis = null) }
+    val isHebdo = type == "Sortie hebdo CSP"
+    var isFirstRender by remember { mutableStateOf(true) }
+
+    // Auto-remplissage de la description selon le type (création uniquement)
+    LaunchedEffect(type) {
+        if (isFirstRender) { isFirstRender = false; return@LaunchedEffect }
+        if (!isEditing) {
+            if (type == "Sortie hebdo CSP") {
+                try {
+                    val doc = Firebase.firestore
+                        .collection("club_training_descriptions")
+                        .document("saturday_training")
+                        .get()
+                    name = doc.get<String?>("title") ?: name
+                    description = doc.get<String?>("description") ?: ""
+                } catch (_: Exception) { description = "" }
+            } else {
+                name = ""
+                description = ""
+            }
+        }
+    }
 
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = remember { DatePickerState(locale = frenchCalendarLocale(), initialSelectedDateMillis = dateFrToMillis(initDate)) }
     var showTimePicker by remember { mutableStateOf(false) }
     val timePickerState = rememberTimePickerState(initialHour = initTime?.first ?: 8, initialMinute = initTime?.second ?: 0, is24Hour = true)
 
+    var selectedTraceIds by remember { mutableStateOf<List<String>>(initialEvent?.traceIds ?: emptyList()) }
+
     val scope = rememberCoroutineScope()
     val repository = remember { EventRepository() }
     val favoriteRepo = remember { FavoriteRepository() }
+    val traceRepo = remember { TraceRepository() }
     val favorites by favoriteRepo.getFavorites().collectAsState(initial = emptyList())
+    val allTraces by traceRepo.getTraces().collectAsState(initial = emptyList())
 
     val formValid = name.isNotBlank() && type.isNotBlank() && date.isNotBlank() && time.isNotBlank()
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        CspDropdown(
+            label = "Type d'événement",
+            selected = type,
+            options = EVENT_TYPES,
+            onSelect = { type = it; feedback = null },
+        )
         CspField(
             label = "Nom de l'événement",
             value = name,
@@ -180,12 +306,7 @@ private fun CreateEventForm(initialEvent: ClubEvent? = null, onDone: (() -> Unit
             placeholder = "Programme, infos pratiques… (Markdown : **gras**, - liste)",
             onValueChange = { description = it; feedback = null },
         )
-        CspDropdown(
-            label = "Type d'événement",
-            selected = type,
-            options = EVENT_TYPES,
-            onSelect = { type = it; feedback = null },
-        )
+
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(modifier = Modifier.weight(1f)) {
                 CspReadonlyField(
@@ -249,6 +370,101 @@ private fun CreateEventForm(initialEvent: ClubEvent? = null, onDone: (() -> Unit
                     TextButton(onClick = { showTimePicker = false }) { Text("Annuler") }
                 },
                 text = { TimePicker(state = timePickerState) },
+            )
+        }
+
+        // Récurrence (hebdo uniquement, création uniquement)
+        if (isHebdo && !isEditing) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isRecurring) CspColors.RedSoft else CspColors.Surface)
+                        .border(1.dp, if (isRecurring) CspColors.Red else CspColors.Line, RoundedCornerShape(12.dp))
+                        .clickable { isRecurring = !isRecurring; if (!isRecurring) repeatUntil = "" }
+                        .padding(horizontal = 14.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column {
+                        Text(
+                            "Événement récurrent",
+                            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink),
+                        )
+                        Text(
+                            "Crée une sortie chaque semaine jusqu'à la date de fin",
+                            style = TextStyle(fontSize = 12.sp, color = CspColors.Muted, lineHeight = (12 * 1.4).sp),
+                        )
+                    }
+                    // Toggle visuel
+                    Box(
+                        modifier = Modifier
+                            .size(width = 44.dp, height = 26.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(if (isRecurring) CspColors.Red else CspColors.Line),
+                        contentAlignment = if (isRecurring) Alignment.CenterEnd else Alignment.CenterStart,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .padding(3.dp)
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(androidx.compose.ui.graphics.Color.White),
+                        )
+                    }
+                }
+                if (isRecurring) {
+                    CspReadonlyField(
+                        label = "Répéter jusqu'au",
+                        value = repeatUntil,
+                        placeholder = "jj/mm/aaaa",
+                        onClick = { showRepeatDatePicker = true },
+                    )
+                }
+            }
+        }
+
+        if (showRepeatDatePicker) {
+            DatePickerDialog(
+                onDismissRequest = { showRepeatDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        repeatDatePickerState.selectedDateMillis?.let { millis ->
+                            repeatUntil = millisToDateStr(millis)
+                        }
+                        showRepeatDatePicker = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRepeatDatePicker = false }) { Text("Annuler") }
+                },
+            ) {
+                DatePicker(
+                    state = repeatDatePickerState,
+                    title = { Text("Date de fin de la série", modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp)) },
+                    headline = {
+                        Text(
+                            text = repeatDatePickerState.selectedDateMillis?.let { millisToDateStr(it) } ?: "Date choisie",
+                            modifier = Modifier.padding(start = 24.dp, end = 12.dp, bottom = 12.dp),
+                            style = TextStyle(fontSize = 32.sp, fontWeight = FontWeight.Normal),
+                        )
+                    },
+                )
+            }
+        }
+
+        // Sélecteur de parcours (désactivé si récurrence activée)
+        if (allTraces.isNotEmpty()) {
+            TracePicker(
+                traces = allTraces,
+                selected = selectedTraceIds,
+                disabled = isRecurring,
+                onToggle = { id ->
+                    selectedTraceIds = if (id in selectedTraceIds) selectedTraceIds - id
+                    else if (selectedTraceIds.size < 3) selectedTraceIds + id
+                    else selectedTraceIds
+                },
             )
         }
 
@@ -433,18 +649,34 @@ private fun CreateEventForm(initialEvent: ClubEvent? = null, onDone: (() -> Unit
                         feedback = null
                         try {
                             if (isEditing && initialEvent != null) {
-                                repository.updateEvent(
-                                    id = initialEvent.id,
-                                    title = name,
-                                    type = type,
-                                    date = date,
-                                    time = time,
-                                    location = location,
-                                    lat = locationLat,
-                                    lon = locationLon,
-                                    description = description,
-                                )
-                                feedback = "✓ Événement modifié"
+                                if (seriesScope == EditScope.SERIES && initialEvent.seriesId != null) {
+                                    repository.updateEventSeries(
+                                        seriesId = initialEvent.seriesId,
+                                        fromDateSort = initialEvent.dateSort,
+                                        title = name,
+                                        type = type,
+                                        time = time,
+                                        location = location,
+                                        lat = locationLat,
+                                        lon = locationLon,
+                                        description = description,
+                                    )
+                                    feedback = "✓ Série modifiée"
+                                } else {
+                                    repository.updateEvent(
+                                        id = initialEvent.id,
+                                        title = name,
+                                        type = type,
+                                        date = date,
+                                        time = time,
+                                        location = location,
+                                        lat = locationLat,
+                                        lon = locationLon,
+                                        description = description,
+                                        traceIds = selectedTraceIds,
+                                    )
+                                    feedback = "✓ Événement modifié"
+                                }
                                 onDone?.invoke()
                             } else {
                                 repository.createEvent(
@@ -456,12 +688,10 @@ private fun CreateEventForm(initialEvent: ClubEvent? = null, onDone: (() -> Unit
                                     lat = locationLat,
                                     lon = locationLon,
                                     description = description,
+                                    repeatUntil = if (isRecurring && repeatUntil.isNotBlank()) repeatUntil else null,
+                                    traceIds = selectedTraceIds,
                                 )
-                                feedback = "✓ Événement créé"
-                                name = ""; type = ""; date = ""; time = ""
-                                location = ""; locationLat = null; locationLon = null
-                                description = ""
-                                mapCenterKey++
+                                onDone?.invoke()
                             }
                         } catch (e: Exception) {
                             feedback = "Erreur : ${e.message}"
@@ -746,6 +976,93 @@ private fun CspReadonlyField(
                     fontSize = 15.sp,
                     color = if (value.isEmpty()) CspColors.Muted2 else CspColors.Ink,
                 ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TracePicker(
+    traces: List<Trace>,
+    selected: List<String>,
+    disabled: Boolean,
+    onToggle: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Parcours associés",
+                style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (disabled) CspColors.Muted2 else CspColors.Muted),
+            )
+            Text(
+                "${selected.size}/3",
+                style = TextStyle(fontSize = 12.sp, color = if (disabled) CspColors.Muted2 else CspColors.Muted),
+            )
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, CspColors.Line, RoundedCornerShape(12.dp))
+                .background(if (disabled) CspColors.Surface else CspColors.Surface),
+        ) {
+            traces.forEachIndexed { index, trace ->
+                val isSelected = trace.id in selected
+                val isDisabled = disabled || (!isSelected && selected.size >= 3)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .let { if (!isDisabled) it.clickable { onToggle(trace.id) } else it }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    // Checkbox visuelle
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                when {
+                                    isSelected && !disabled -> CspColors.Red
+                                    else -> CspColors.Surface3
+                                }
+                            )
+                            .border(1.dp, if (isSelected && !disabled) CspColors.Red else CspColors.Line, RoundedCornerShape(4.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (isSelected && !disabled) {
+                            Text("✓", style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White))
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            trace.title,
+                            style = TextStyle(
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (disabled || isDisabled) CspColors.Muted2 else CspColors.Ink,
+                            ),
+                        )
+                        Text(
+                            "${trace.distanceKm.formatKm()} km · D+ ${trace.elevationUp} m",
+                            style = TextStyle(fontSize = 12.sp, color = CspColors.Muted2),
+                        )
+                    }
+                }
+                if (index < traces.lastIndex) {
+                    HorizontalDivider(color = CspColors.Line, modifier = Modifier.padding(horizontal = 14.dp))
+                }
+            }
+        }
+        if (disabled) {
+            Text(
+                "Non disponible pour les événements récurrents",
+                style = TextStyle(fontSize = 11.sp, color = CspColors.Muted2),
             )
         }
     }

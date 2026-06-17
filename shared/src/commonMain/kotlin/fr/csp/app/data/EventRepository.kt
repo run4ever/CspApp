@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.plus
 
 class EventRepository {
     private val db = Firebase.firestore
@@ -17,7 +19,7 @@ class EventRepository {
         db.collection("events").snapshots.map { snapshot ->
             snapshot.documents
                 .mapNotNull { it.toClubEvent() }
-                .sortedWith(compareBy({ !it.featured }, { it.dateSort }))
+                .sortedBy { it.dateSort }
         }
 
     suspend fun updateEvent(
@@ -30,6 +32,7 @@ class EventRepository {
         lat: Double? = null,
         lon: Double? = null,
         description: String = "",
+        traceIds: List<String> = emptyList(),
     ) {
         db.collection("events").document(id).set(
             buildMap<String, Any?> {
@@ -41,6 +44,7 @@ class EventRepository {
                 put("description", description)
                 put("lat", lat)
                 put("lon", lon)
+                put("traceIds", traceIds)
             },
             merge = true,
         )
@@ -55,24 +59,98 @@ class EventRepository {
         lat: Double? = null,
         lon: Double? = null,
         description: String = "",
+        repeatUntil: String? = null,
+        traceIds: List<String> = emptyList(),
     ) {
-        db.collection("events").add(
-            buildMap {
-                put("title", title)
-                put("type", type)
-                put("date", date)
-                put("time", time)
-                put("location", location)
-                put("status", "OPEN")
-                put("participants_count", 0)
-                put("featured", false)
-                if (lat != null) put("lat", lat)
-                if (lon != null) put("lon", lon)
-                put("description", description)
+        val dates = buildRecurrenceDates(date, repeatUntil)
+        val seriesId = if (dates.size > 1) generateSeriesId() else null
+        dates.forEach { d ->
+            db.collection("events").add(
+                buildMap {
+                    put("title", title)
+                    put("type", type)
+                    put("date", d)
+                    put("time", time)
+                    put("location", location)
+                    put("status", "OPEN")
+                    put("participants_count", 0)
+                    put("featured", false)
+                    if (lat != null) put("lat", lat)
+                    if (lon != null) put("lon", lon)
+                    put("description", description)
+                    if (seriesId != null) put("seriesId", seriesId)
+                    put("traceIds", traceIds)
+                }
+            )
+        }
+    }
+
+    suspend fun updateEventSeries(
+        seriesId: String,
+        fromDateSort: String,
+        title: String,
+        type: String,
+        time: String,
+        location: String,
+        lat: Double? = null,
+        lon: Double? = null,
+        description: String = "",
+    ) {
+        db.collection("events")
+            .where { "seriesId" equalTo seriesId }
+            .get().documents
+            .filter { doc ->
+                val dateStr = try { doc.get<String?>("date") } catch (_: Exception) { null } ?: ""
+                (parseDateFr(dateStr)?.toString() ?: dateStr) >= fromDateSort
             }
-        )
+            .forEach { doc ->
+                db.collection("events").document(doc.id).set(
+                    buildMap<String, Any?> {
+                        put("title", title)
+                        put("type", type)
+                        put("time", time)
+                        put("location", location)
+                        put("description", description)
+                        put("lat", lat)
+                        put("lon", lon)
+                    },
+                    merge = true,
+                )
+            }
+    }
+
+    suspend fun deleteEventSeriesFrom(seriesId: String, fromDateSort: String) {
+        db.collection("events")
+            .where { "seriesId" equalTo seriesId }
+            .get().documents
+            .filter { doc ->
+                val dateStr = try { doc.get<String?>("date") } catch (_: Exception) { null } ?: ""
+                (parseDateFr(dateStr)?.toString() ?: dateStr) >= fromDateSort
+            }
+            .forEach { doc -> db.collection("events").document(doc.id).delete() }
     }
 }
+
+private fun generateSeriesId(): String {
+    val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+    return (1..20).map { chars.random() }.joinToString("")
+}
+
+private fun buildRecurrenceDates(startDate: String, repeatUntil: String?): List<String> {
+    if (repeatUntil == null) return listOf(startDate)
+    val start = parseDateFr(startDate) ?: return listOf(startDate)
+    val end = parseDateFr(repeatUntil) ?: return listOf(startDate)
+    val dates = mutableListOf<String>()
+    var current = start
+    while (current <= end) {
+        dates.add(current.toDateFr())
+        current = current.plus(1, DateTimeUnit.WEEK)
+    }
+    return dates.ifEmpty { listOf(startDate) }
+}
+
+private fun LocalDate.toDateFr(): String =
+    "${dayOfMonth.toString().padStart(2, '0')}/${monthNumber.toString().padStart(2, '0')}/$year"
 
 private fun DocumentSnapshot.toClubEvent(): ClubEvent? {
     return try {
@@ -90,6 +168,8 @@ private fun DocumentSnapshot.toClubEvent(): ClubEvent? {
         val lon = get<Double?>("lon")
         val description = get<String?>("description") ?: ""
         val type = get<String?>("type") ?: ""
+        val seriesId = get<String?>("seriesId")
+        val traceIds = try { get<List<String>?>("traceIds") ?: emptyList() } catch (_: Exception) { emptyList() }
         ClubEvent(
             id = id,
             title = title,
@@ -113,6 +193,8 @@ private fun DocumentSnapshot.toClubEvent(): ClubEvent? {
             lon = lon,
             description = description,
             type = type,
+            seriesId = seriesId,
+            traceIds = traceIds,
         )
     } catch (_: Exception) {
         null

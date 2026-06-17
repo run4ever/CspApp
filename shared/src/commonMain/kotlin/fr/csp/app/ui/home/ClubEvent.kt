@@ -19,6 +19,8 @@ data class ClubEvent(
     val lon: Double? = null,
     val description: String = "",
     val type: String = "",
+    val seriesId: String? = null,
+    val traceIds: List<String> = emptyList(),
 )
 
 enum class EventStatus { OPEN, CANCELLED, FULL }

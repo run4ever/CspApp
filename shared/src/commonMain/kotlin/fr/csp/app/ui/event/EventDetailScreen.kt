@@ -3,6 +3,9 @@ package fr.csp.app.ui.event
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -19,7 +22,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.zIndex
+import fr.csp.app.ui.trace.Trace
+import fr.csp.app.ui.trace.formatKm
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
@@ -77,6 +83,33 @@ private fun relativeTime(epochMillis: Long): String {
 
 
 // ── Composants internes ───────────────────────────────────────
+
+@Composable
+private fun TraceEventRow(trace: Trace, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(CspColors.Surface2)
+            .border(1.dp, CspColors.Line, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(trace.title, style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Ink))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("${trace.distanceKm.formatKm()} km", style = TextStyle(fontSize = 13.sp, color = CspColors.Muted))
+                Text("D+ ${trace.elevationUp} m", style = TextStyle(fontSize = 13.sp, color = CspColors.Muted))
+            }
+        }
+        if (trace.url.isNotBlank()) {
+            IconChevronRight(tint = CspColors.Muted2, modifier = Modifier.size(18.dp))
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+}
 
 @Composable
 private fun GlassButton(onClick: () -> Unit, content: @Composable () -> Unit) {
@@ -390,6 +423,179 @@ private fun CommentItem(comment: FirestoreComment, canDelete: Boolean = false, o
 }
 
 @Composable
+private fun GroupBadge(group: String) {
+    val bg = when (group) {
+        "G1" -> CspColors.Red
+        "G2" -> CspColors.Blue
+        else -> Color.White
+    }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(bg)
+            .then(if (group == "G3") Modifier.border(1.dp, CspColors.Line, RoundedCornerShape(8.dp)) else Modifier)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(group, style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF0D0F11)))
+    }
+}
+
+@Composable
+private fun GroupAvatarRow(
+    uids: List<String>,
+    currentUid: String?,
+    photoUrlMap: Map<String, String?>,
+    userPhotoUrl: String? = null,
+) {
+    val shades = listOf(Color(0xFFCFD8DC), Color(0xFFB0BEC5), Color(0xFF90A4AE), Color(0xFF78909C))
+    val maxShow = 5
+    val showOverflow = uids.size > maxShow
+    val visible = if (showOverflow) uids.take(maxShow - 1) else uids
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        visible.forEachIndexed { i, uid ->
+            val isYou = uid == currentUid
+            val photo = if (isYou) userPhotoUrl ?: photoUrlMap[uid] else photoUrlMap[uid]
+            Box(
+                modifier = Modifier
+                    .offset(x = if (i > 0) (-10).dp else 0.dp)
+                    .zIndex((maxShow - i).toFloat())
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(if (isYou) CspColors.Blue else shades[i.coerceAtMost(shades.lastIndex)])
+                    .border(2.dp, CspColors.Bg, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (!photo.isNullOrBlank()) {
+                    AsyncImage(model = photo, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                } else if (isYou) {
+                    Text("Moi", style = TextStyle(fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color(0xFF08252E)))
+                }
+            }
+        }
+        if (showOverflow) {
+            Box(
+                modifier = Modifier
+                    .offset(x = (-10).dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(shades.last())
+                    .border(2.dp, CspColors.Bg, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("+${uids.size - visible.size}", style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupPickerDialog(
+    currentGroup: String?,
+    onSelect: (String) -> Unit,
+    onLeave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.65f))
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onDismiss() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 28.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(CspColors.Surface2)
+                .border(1.dp, CspColors.Line, RoundedCornerShape(20.dp))
+                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                if (currentGroup != null) "Changer de groupe" else "Choisissez votre groupe",
+                style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+            )
+            Text(
+                "Choisissez selon votre allure habituelle sur la sortie.",
+                style = TextStyle(fontSize = 14.sp, color = CspColors.Ink2, lineHeight = (14 * 1.5).sp),
+            )
+            Spacer(Modifier.height(2.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                listOf("G1", "G2", "G3").forEach { g ->
+                    val isSelected = g == currentGroup
+                    val groupBg = when (g) {
+                        "G1" -> CspColors.Red
+                        "G2" -> CspColors.Blue
+                        else -> Color.White
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isSelected) groupBg else groupBg.copy(alpha = 0.18f))
+                            .border(
+                                1.5.dp,
+                                if (isSelected) groupBg else groupBg.copy(alpha = 0.35f),
+                                RoundedCornerShape(14.dp),
+                            )
+                            .clickable { onSelect(g) }
+                            .padding(vertical = 18.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            g,
+                            style = TextStyle(
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Black,
+                                color = if (isSelected) Color(0xFF0D0F11) else CspColors.Ink,
+                            ),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(2.dp))
+            if (currentGroup != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CspColors.Surface3)
+                        .border(1.dp, CspColors.Line, RoundedCornerShape(12.dp))
+                        .clickable { onLeave() }
+                        .padding(14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Annuler ma participation",
+                        style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CspColors.Red),
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CspColors.Surface3)
+                    .border(1.dp, CspColors.Line, RoundedCornerShape(12.dp))
+                    .clickable { onDismiss() }
+                    .padding(14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "Fermer",
+                    style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink2),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun MarkdownBlock(
     content: String,
     expanded: Boolean,
@@ -454,13 +660,18 @@ private fun MarkdownBlock(
 private enum class LoginPrompt { PARTICIPATE, COMMENT }
 
 @Composable
-fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = false, onEdit: (() -> Unit)? = null, userCanComment: Boolean = true, userPhotoUrl: String? = null, onLogin: (() -> Unit)? = null) {
+fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = false, onEdit: (() -> Unit)? = null, onDelete: (() -> Unit)? = null, onPrevious: (() -> Unit)? = null, onNext: (() -> Unit)? = null, userCanComment: Boolean = true, userPhotoUrl: String? = null, onLogin: (() -> Unit)? = null) {
     val vm = viewModel(key = event.id) { EventDetailViewModel(event.id) }
     val participants by vm.participants.collectAsStateWithLifecycle()
     val currentUid by vm.currentUid.collectAsStateWithLifecycle()
     val isJoined by vm.isJoined.collectAsStateWithLifecycle()
     val isLoggedIn by vm.isLoggedIn.collectAsStateWithLifecycle()
     val participantPhotos by vm.participantPhotos.collectAsStateWithLifecycle()
+    val participantGroups by vm.participantGroups.collectAsStateWithLifecycle()
+    val myGroup by vm.myGroup.collectAsStateWithLifecycle()
+    val traces by vm.traces.collectAsStateWithLifecycle()
+    val isHebdo = event.type == "Sortie hebdo CSP"
+    val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
 
     val commentRepo = remember { CommentRepository() }
@@ -503,12 +714,34 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
 
     val cancelled = event.status == EventStatus.CANCELLED
     var loginPrompt by remember { mutableStateOf<LoginPrompt?>(null) }
+    var showGroupPicker by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val swipeThresholdPx = remember { with(density) { 80.dp.toPx() } }
+    var totalDrag by remember { mutableFloatStateOf(0f) }
     var expanded by remember { mutableStateOf(false) }
 
     val participantCount = participants.size
     val dateLong = "${event.weekday} ${event.day} ${event.month}"
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(onPrevious, onNext) {
+                detectHorizontalDragGestures(
+                    onDragStart = { totalDrag = 0f },
+                    onDragEnd = {
+                        when {
+                            totalDrag > swipeThresholdPx -> onPrevious?.invoke()
+                            totalDrag < -swipeThresholdPx -> onNext?.invoke()
+                        }
+                        totalDrag = 0f
+                    },
+                    onDragCancel = { totalDrag = 0f },
+                    onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount },
+                )
+            },
+    ) {
     Column(modifier = Modifier.fillMaxSize().background(CspColors.Bg)) {
         // Scrollable body
         Column(
@@ -553,16 +786,24 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
                         IconBack(tint = Color.White, modifier = Modifier.size(20.dp))
                     }
                 }
-                // Bouton édition admin (verre, haut droite)
-                if (isAdmin && onEdit != null) {
-                    Box(
+                // Boutons admin (haut droite) : édition + suppression
+                if (isAdmin) {
+                    Column(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .statusBarsPadding()
                             .padding(end = 14.dp, top = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        GlassButton(onClick = onEdit) {
-                            IconPencil(tint = Color.White, modifier = Modifier.size(20.dp))
+                        if (onEdit != null) {
+                            GlassButton(onClick = onEdit) {
+                                IconPencil(tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        if (onDelete != null) {
+                            GlassButton(onClick = { showDeleteConfirm = true }) {
+                                IconTrash(tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
                         }
                     }
                 }
@@ -622,12 +863,43 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
                     style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Muted),
                 )
                 Spacer(Modifier.height(10.dp))
-                ParticipantAvatars(
-                    participantIds = participants,
-                    currentUid = currentUid,
-                    photoUrlMap = participantPhotos,
-                    userPhotoUrl = userPhotoUrl,
-                )
+                if (isHebdo && participantGroups.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        listOf("G1", "G2", "G3").forEach { g ->
+                            val groupUids = participants.filter { participantGroups[it] == g }
+                            if (groupUids.isNotEmpty()) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    GroupBadge(g)
+                                    GroupAvatarRow(
+                                        uids = groupUids,
+                                        currentUid = currentUid,
+                                        photoUrlMap = participantPhotos,
+                                        userPhotoUrl = userPhotoUrl,
+                                    )
+                                }
+                            }
+                        }
+                        val ungrouped = participants.filter { participantGroups[it].isNullOrEmpty() }
+                        if (ungrouped.isNotEmpty()) {
+                            ParticipantAvatars(
+                                participantIds = ungrouped,
+                                currentUid = currentUid,
+                                photoUrlMap = participantPhotos,
+                                userPhotoUrl = userPhotoUrl,
+                            )
+                        }
+                    }
+                } else {
+                    ParticipantAvatars(
+                        participantIds = participants,
+                        currentUid = currentUid,
+                        photoUrlMap = participantPhotos,
+                        userPhotoUrl = userPhotoUrl,
+                    )
+                }
 
                 // D : Programme
                 if (event.description.isNotBlank()) {
@@ -639,7 +911,13 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
                     )
                 }
 
-                // E : Lieu
+                // E : Parcours
+                if (traces.isNotEmpty()) {
+                    SectionTitle("Parcours")
+                    traces.forEach { trace -> TraceEventRow(trace, onClick = { if (trace.url.isNotBlank()) uriHandler.openUri(trace.url) }) }
+                }
+
+                // F : Lieu
                 if (event.location.isNotEmpty()) {
                     val locationSub = if (event.lat != null && event.lon != null)
                         "${event.lat.toString().take(8)}, ${event.lon.toString().take(8)}"
@@ -819,45 +1097,192 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
                     )
                 }
             } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (isJoined) CspColors.Surface2 else CspColors.Red)
-                        .then(
-                            if (isJoined) Modifier.border(1.dp, CspColors.Line, RoundedCornerShape(14.dp)) else Modifier
-                        )
-                        .clickable {
-                            if (isLoggedIn == true) {
-                                scope.launch { vm.toggleParticipation() }
-                            } else {
-                                loginPrompt = LoginPrompt.PARTICIPATE
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Bouton "Changer de groupe" (hebdo uniquement, quand déjà inscrit)
+                    if (isHebdo && isJoined) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(CspColors.Surface2)
+                                .border(1.dp, CspColors.Line, RoundedCornerShape(14.dp))
+                                .clickable {
+                                    if (isLoggedIn == true) showGroupPicker = true
+                                }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                if (myGroup != null) {
+                                    GroupBadge(myGroup!!)
+                                }
+                                Text(
+                                    "Changer de groupe",
+                                    style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Ink2),
+                                )
                             }
                         }
-                        .padding(15.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(9.dp),
+                    }
+                    // CTA principal
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isJoined) CspColors.Surface2 else CspColors.Red)
+                            .then(
+                                if (isJoined) Modifier.border(1.dp, CspColors.Line, RoundedCornerShape(14.dp)) else Modifier
+                            )
+                            .clickable {
+                                if (isLoggedIn == true) {
+                                    when {
+                                        isJoined -> scope.launch { vm.leaveEvent() }
+                                        isHebdo -> showGroupPicker = true
+                                        else -> scope.launch { vm.joinWithGroup("") }
+                                    }
+                                } else {
+                                    loginPrompt = LoginPrompt.PARTICIPATE
+                                }
+                            }
+                            .padding(15.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        if (isJoined) {
-                            IconCheck(CspColors.Green, Modifier.size(19.dp))
-                            Text(
-                                "Annuler ma participation",
-                                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.Green),
-                            )
-                        } else {
-                            Text(
-                                "Participer",
-                                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White),
-                            )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(9.dp),
+                        ) {
+                            if (isJoined) {
+                                IconCheck(CspColors.Green, Modifier.size(19.dp))
+                                Text(
+                                    "Annuler ma participation",
+                                    style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = CspColors.Green),
+                                )
+                            } else {
+                                Text(
+                                    "Participer",
+                                    style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White),
+                                )
+                            }
                         }
                     }
                 }
             }
         }
     } // fin Column principal
+
+    // ── Dialog : confirmation suppression ────────────────────
+    if (showDeleteConfirm) {
+        if (event.seriesId != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .zIndex(10f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CspColors.Surface2)
+                        .border(1.dp, CspColors.Line, RoundedCornerShape(20.dp))
+                        .padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    androidx.compose.material3.Text(
+                        "Supprimer cet événement ?",
+                        style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
+                    )
+                    androidx.compose.material3.Text(
+                        "Cet événement fait partie d'une série. Que souhaitez-vous supprimer ?",
+                        style = TextStyle(fontSize = 14.sp, color = CspColors.Ink2, lineHeight = (14 * 1.5).sp),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CspColors.Red)
+                            .clickable {
+                                showDeleteConfirm = false
+                                scope.launch {
+                                    vm.deleteSeriesFrom(event.seriesId, event.dateSort)
+                                    onDelete?.invoke()
+                                }
+                            }
+                            .padding(14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.material3.Text(
+                            "Cet événement et les suivants",
+                            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White),
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CspColors.Surface3)
+                            .border(1.dp, CspColors.Line, RoundedCornerShape(12.dp))
+                            .clickable {
+                                showDeleteConfirm = false
+                                scope.launch {
+                                    vm.deleteEvent()
+                                    onDelete?.invoke()
+                                }
+                            }
+                            .padding(14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.material3.Text(
+                            "Cet événement uniquement",
+                            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink2),
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CspColors.Surface3)
+                            .border(1.dp, CspColors.Line, RoundedCornerShape(12.dp))
+                            .clickable { showDeleteConfirm = false }
+                            .padding(14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.material3.Text(
+                            "Annuler",
+                            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CspColors.Muted),
+                        )
+                    }
+                }
+            }
+        } else {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                title = { androidx.compose.material3.Text("Supprimer cet événement ?") },
+                text = { androidx.compose.material3.Text("Cette action est irréversible.") },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        showDeleteConfirm = false
+                        scope.launch {
+                            vm.deleteEvent()
+                            onDelete?.invoke()
+                        }
+                    }) {
+                        androidx.compose.material3.Text("Supprimer", color = CspColors.Red)
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { showDeleteConfirm = false }) {
+                        androidx.compose.material3.Text("Annuler")
+                    }
+                },
+            )
+        }
+    }
 
     // ── Dialog : connexion requise ────────────────────────────
     if (loginPrompt != null) {
@@ -940,6 +1365,21 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
                 }
             }
         }
+    }
+    // ── Dialog : choix de groupe ──────────────────────────────
+    if (showGroupPicker) {
+        GroupPickerDialog(
+            currentGroup = myGroup,
+            onSelect = { group ->
+                showGroupPicker = false
+                scope.launch { vm.joinWithGroup(group) }
+            },
+            onLeave = {
+                showGroupPicker = false
+                scope.launch { vm.leaveEvent() }
+            },
+            onDismiss = { showGroupPicker = false },
+        )
     }
     } // fin Box racine
 }
