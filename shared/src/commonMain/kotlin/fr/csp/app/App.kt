@@ -20,6 +20,7 @@ fun App(driverFactory: DatabaseDriverFactory) {
     val vm = viewModel { HomeViewModel() }
     val isAdmin by vm.isAdmin.collectAsStateWithLifecycle()
     val events by vm.events.collectAsStateWithLifecycle()
+    val userDoc by vm.userDoc.collectAsStateWithLifecycle()
 
     var selectedEvent by remember { mutableStateOf<ClubEvent?>(null) }
     var editingEvent by remember { mutableStateOf<ClubEvent?>(null) }
@@ -41,6 +42,7 @@ fun App(driverFactory: DatabaseDriverFactory) {
             onBack = { selectedEvent = null },
             isAdmin = isAdmin,
             onEdit = { editingEvent = liveEvent },
+            userCanComment = userDoc?.canComment ?: true,
         )
         else -> HomeScreen(
             onEventClick = { event -> selectedEvent = event },

@@ -12,6 +12,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 private fun DrawScope.iconStroke(width: Float = 1.9f) = Stroke(
     width = width * density,
@@ -373,5 +376,66 @@ fun IconShield(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 
             close()
         }
         drawPath(path, tint, style = st)
+    }
+}
+
+@Composable
+fun IconComment(slashed: Boolean = false, tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val bubble = Path().apply {
+            moveTo(s(4f), s(3.5f))
+            cubicTo(s(2.5f), s(3.5f), s(2f), s(4f), s(2f), s(5.5f))
+            lineTo(s(2f), s(14.5f))
+            cubicTo(s(2f), s(16f), s(2.5f), s(16.5f), s(4f), s(16.5f))
+            lineTo(s(8f), s(16.5f))
+            lineTo(s(5.5f), s(21f))
+            lineTo(s(13f), s(16.5f))
+            lineTo(s(20f), s(16.5f))
+            cubicTo(s(21.5f), s(16.5f), s(22f), s(16f), s(22f), s(14.5f))
+            lineTo(s(22f), s(5.5f))
+            cubicTo(s(22f), s(4f), s(21.5f), s(3.5f), s(20f), s(3.5f))
+            close()
+        }
+        drawPath(bubble, tint, style = st)
+        if (slashed) {
+            val sw = strokeWidth * density
+            drawLine(tint, Offset(s(3f), s(3f)), Offset(s(21f), s(21f)), sw, StrokeCap.Round)
+        }
+    }
+}
+
+@Composable
+fun IconUserCog(slashed: Boolean = false, tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val sw = strokeWidth * density
+        // Tête
+        drawCircle(tint, radius = s(3f), center = Offset(s(8f), s(6.5f)), style = st)
+        // Corps
+        val body = Path().apply {
+            moveTo(s(2f), s(18f))
+            cubicTo(s(2f), s(14f), s(4.5f), s(12f), s(8f), s(12f))
+            cubicTo(s(11.5f), s(12f), s(14f), s(14f), s(14f), s(18f))
+        }
+        drawPath(body, tint, style = st)
+        // Engrenage centré à (18, 17)
+        val gcx = s(18f); val gcy = s(17f)
+        val go = s(3.8f); val gi = s(2.7f); val gh = s(1.4f)
+        val gearPath = Path().apply {
+            for (i in 0 until 12) {
+                val angle = PI * i / 6.0 - PI / 2.0
+                val r = if (i % 2 == 0) go else gi
+                val x = gcx + (r * cos(angle)).toFloat()
+                val y = gcy + (r * sin(angle)).toFloat()
+                if (i == 0) moveTo(x, y) else lineTo(x, y)
+            }
+            close()
+        }
+        drawPath(gearPath, tint, style = st)
+        drawCircle(tint, radius = gh, center = Offset(gcx, gcy), style = st)
+        if (slashed) {
+            drawLine(tint, Offset(s(3f), s(3f)), Offset(s(21f), s(21f)), sw, StrokeCap.Round)
+        }
     }
 }

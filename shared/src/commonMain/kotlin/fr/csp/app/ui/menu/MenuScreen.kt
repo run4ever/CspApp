@@ -38,6 +38,7 @@ fun MenuScreen(
     isAdmin: Boolean,
     authVm: AuthViewModel,
     onClose: () -> Unit,
+    onMemberManagement: () -> Unit,
     onSignOut: () -> Unit,
     onLoginSuccess: () -> Unit,
     onSignupSuccess: () -> Unit,
@@ -64,6 +65,7 @@ fun MenuScreen(
             user = userDoc!!,
             isAdmin = isAdmin,
             onClose = onClose,
+            onMemberManagement = onMemberManagement,
             onProfileClick = { nav = MenuNav.Profile },
         )
     }
@@ -76,6 +78,7 @@ private fun MenuContent(
     user: UserDoc,
     isAdmin: Boolean,
     onClose: () -> Unit,
+    onMemberManagement: () -> Unit,
     onProfileClick: () -> Unit,
 ) {
     val initials = "${user.prenom.firstOrNull() ?: ""}${user.nom.firstOrNull() ?: ""}".uppercase()
@@ -158,7 +161,7 @@ private fun MenuContent(
                 MenuRow(
                     label = "Gestion des membres",
                     icon = { IconShield(tint = CspColors.Muted, modifier = Modifier.size(18.dp)) },
-                    onClick = null,
+                    onClick = onMemberManagement,
                 )
                 HorizontalDivider(color = CspColors.Line2)
                 MenuRow(

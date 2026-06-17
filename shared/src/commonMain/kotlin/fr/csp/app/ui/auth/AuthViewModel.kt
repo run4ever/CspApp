@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlin.random.Random
+import kotlin.time.Clock
 
 class AuthViewModel : ViewModel() {
     private val auth = Firebase.auth
@@ -43,6 +44,7 @@ class AuthViewModel : ViewModel() {
                 "date_naissance" to dateNaissance,
                 "role" to "member",
                 "status" to "PENDING",
+                "createdAt" to Clock.System.now().toEpochMilliseconds(),
             )
         )
         auth.signOut()

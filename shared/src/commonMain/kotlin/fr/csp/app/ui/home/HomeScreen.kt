@@ -420,6 +420,7 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Uni
     val authVm = viewModel { AuthViewModel() }
     var showSignupBanner by remember { mutableStateOf(false) }
     var showAdminValidation by remember { mutableStateOf(false) }
+    var showAdminWithPendingFilter by remember { mutableStateOf(false) }
     val today = remember { currentDateIso() }
     val future = remember(events, today) {
         events.filter { it.dateSort.isEmpty() || it.dateSort >= today }
@@ -444,7 +445,10 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Uni
     ) {
         Box(modifier = Modifier.weight(1f)) {
             if (showAdminValidation) {
-                AdminValidationScreen(onBack = { showAdminValidation = false })
+                AdminValidationScreen(
+                    onBack = { showAdminValidation = false; showAdminWithPendingFilter = false },
+                    openWithPendingFilter = showAdminWithPendingFilter,
+                )
             } else when (selectedTab) {
                 0 -> Column(
                     modifier = Modifier
@@ -457,7 +461,7 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Uni
                         Spacer(Modifier.height(16.dp))
                     }
                     if (isAdmin && pendingCount > 0) {
-                        AdminPendingBanner(count = pendingCount, onClick = { showAdminValidation = true })
+                        AdminPendingBanner(count = pendingCount, onClick = { showAdminValidation = true; showAdminWithPendingFilter = true })
                         Spacer(Modifier.height(16.dp))
                     }
                     Greeting(
@@ -516,12 +520,13 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Uni
                     isAdmin = isAdmin,
                     authVm = authVm,
                     onClose = { selectedTab = 0 },
+                    onMemberManagement = { showAdminValidation = true },
                     onSignOut = { selectedTab = 0 },
                     onLoginSuccess = { selectedTab = 0 },
                     onSignupSuccess = { showSignupBanner = true; selectedTab = 0 },
                 )
             }
         }
-        BottomNav(activeTab = selectedTab, onTabSelected = { selectedTab = it })
+        BottomNav(activeTab = selectedTab, onTabSelected = { selectedTab = it; showAdminValidation = false })
     }
 }

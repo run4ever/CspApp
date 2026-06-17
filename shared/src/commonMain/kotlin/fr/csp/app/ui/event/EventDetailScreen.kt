@@ -36,6 +36,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -419,7 +420,7 @@ private fun MarkdownBlock(
 // ── Écran principal ───────────────────────────────────────────
 
 @Composable
-fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = false, onEdit: (() -> Unit)? = null) {
+fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = false, onEdit: (() -> Unit)? = null, userCanComment: Boolean = true) {
     val vm = viewModel(key = event.id) { EventDetailViewModel(event.id) }
     val participants by vm.participants.collectAsStateWithLifecycle()
     val isJoined by vm.isJoined.collectAsStateWithLifecycle()
@@ -660,59 +661,75 @@ fun EventDetailScreen(event: ClubEvent, onBack: () -> Unit, isAdmin: Boolean = f
 
                 // Saisie commentaire
                 Spacer(Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    AvatarCircle(
-                        initials = nameInitials(currentUserName).ifEmpty { "Moi" },
-                        isYou = true,
-                        modifier = Modifier.size(36.dp),
-                    )
-                    Row(
+                if (isLoggedIn == true && !userCanComment) {
+                    Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(999.dp))
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
                             .background(CspColors.Surface)
-                            .border(1.dp, CspColors.Line, RoundedCornerShape(999.dp))
-                            .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            .border(1.dp, CspColors.Line, RoundedCornerShape(12.dp))
+                            .padding(16.dp),
                     ) {
-                        BasicTextField(
-                            value = commentText,
-                            onValueChange = { commentText = it },
-                            modifier = Modifier.weight(1f),
-                            textStyle = TextStyle(fontSize = 14.sp, color = CspColors.Ink),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                            keyboardActions = KeyboardActions(onSend = { sendComment() }),
-                            decorationBox = { inner ->
-                                Box {
-                                    if (commentText.isEmpty()) {
-                                        Text(
-                                            "Laissez un commentaire…",
-                                            style = TextStyle(fontSize = 14.sp, color = CspColors.Muted2),
-                                        )
-                                    }
-                                    inner()
-                                }
-                            },
+                        Text(
+                            "Vous ne pouvez pas commenter cet évènement.",
+                            style = TextStyle(fontSize = 14.sp, color = CspColors.Muted, fontStyle = FontStyle.Italic),
                         )
-                        val hasText = commentText.isNotBlank()
-                        Box(
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        AvatarCircle(
+                            initials = nameInitials(currentUserName).ifEmpty { "Moi" },
+                            isYou = true,
+                            modifier = Modifier.size(36.dp),
+                        )
+                        Row(
                             modifier = Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(if (hasText) CspColors.Red else CspColors.Surface3)
-                                .clickable { sendComment() },
-                            contentAlignment = Alignment.Center,
+                                .weight(1f)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(CspColors.Surface)
+                                .border(1.dp, CspColors.Line, RoundedCornerShape(999.dp))
+                                .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            IconSend(
-                                tint = if (hasText) Color.White else CspColors.Muted,
-                                modifier = Modifier.size(16.dp),
+                            BasicTextField(
+                                value = commentText,
+                                onValueChange = { commentText = it },
+                                modifier = Modifier.weight(1f),
+                                textStyle = TextStyle(fontSize = 14.sp, color = CspColors.Ink),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                keyboardActions = KeyboardActions(onSend = { sendComment() }),
+                                decorationBox = { inner ->
+                                    Box {
+                                        if (commentText.isEmpty()) {
+                                            Text(
+                                                "Laissez un commentaire…",
+                                                style = TextStyle(fontSize = 14.sp, color = CspColors.Muted2),
+                                            )
+                                        }
+                                        inner()
+                                    }
+                                },
                             )
+                            val hasText = commentText.isNotBlank()
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(if (hasText) CspColors.Red else CspColors.Surface3)
+                                    .clickable { sendComment() },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                IconSend(
+                                    tint = if (hasText) Color.White else CspColors.Muted,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
                         }
                     }
                 }

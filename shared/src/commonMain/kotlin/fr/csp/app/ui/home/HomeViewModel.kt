@@ -16,6 +16,7 @@ data class UserDoc(
     val role: String,
     val status: String,
     val email: String,
+    val canComment: Boolean = true,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -40,6 +41,7 @@ class HomeViewModel : ViewModel() {
                     role = doc.get<String?>("role") ?: "",
                     status = doc.get<String?>("status") ?: "",
                     email = doc.get<String?>("email") ?: "",
+                    canComment = doc.get<Boolean?>("canComment") ?: true,
                 )
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
