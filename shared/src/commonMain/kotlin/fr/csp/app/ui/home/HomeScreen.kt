@@ -41,7 +41,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import fr.csp.app.ui.admin.AdminValidationScreen
 import fr.csp.app.ui.auth.AuthScreen
 import fr.csp.app.ui.auth.AuthViewModel
-import fr.csp.app.ui.profile.ProfileScreen
+import fr.csp.app.ui.shop.ShopScreen
 import fr.csp.app.ui.theme.CspColors
 
 // ── Bannières ─────────────────────────────────────────────────
@@ -425,7 +425,7 @@ fun BottomNav(activeTab: Int = 0, onTabSelected: (Int) -> Unit = {}) {
     data class Tab(val label: String, val index: Int, val icon: @Composable (Color, Modifier) -> Unit)
     val tabs = listOf(
         Tab("Accueil", 0) { c, m -> IconHome(c, m) },
-        Tab("Événements", 1) { c, m -> IconCalendar(c, m) },
+        Tab("Boutique", 1) { c, m -> IconShop(c, m) },
         Tab("Profil", 2) { c, m -> IconUser(c, m) },
     )
     Row(
@@ -538,7 +538,7 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}) {
                         }
                     }
                 }
-                1 -> ProfileScreen()
+                1 -> ShopScreen()
                 2 -> if (userDoc != null && userDoc!!.status == "VALIDATED") {
                     UserProfileTab(user = userDoc!!, onSignOut = { scope.launch { authVm.signOut() } })
                 } else {

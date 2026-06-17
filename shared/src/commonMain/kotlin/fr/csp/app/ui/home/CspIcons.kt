@@ -257,6 +257,29 @@ fun IconBell(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.
 }
 
 @Composable
+fun IconShop(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        // Corps du sac
+        val bag = Path().apply {
+            addRoundRect(
+                androidx.compose.ui.geometry.RoundRect(
+                    rect = androidx.compose.ui.geometry.Rect(Offset(s(4f), s(8f)), androidx.compose.ui.geometry.Size(s(16f), s(13f))),
+                    radiusX = s(2f), radiusY = s(2f),
+                )
+            )
+        }
+        drawPath(bag, tint, style = st)
+        // Anse
+        val handle = Path().apply {
+            moveTo(s(9f), s(8f))
+            cubicTo(s(9f), s(5.5f), s(15f), s(5.5f), s(15f), s(8f))
+        }
+        drawPath(handle, tint, style = st)
+    }
+}
+
+@Composable
 fun IconTrash(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
     Canvas(modifier = modifier) {
         val st = iconStroke(strokeWidth)
