@@ -587,7 +587,7 @@ fun HomeScreen(
                         nom = userDoc?.nom,
                         photoUrl = userDoc?.photoUrl,
                         onAvatarClick = { onTabSelected(3) },
-                        onLoginClick = if (userDoc?.status != "VALIDATED") { { onTabSelected(3) } } else null,
+                        onLoginClick = if (userDoc?.status != "VALIDATED") onLoginRequest else null,
                     )
                     cancelledBefore.forEachIndexed { index, event ->
                         AgendaItem(
