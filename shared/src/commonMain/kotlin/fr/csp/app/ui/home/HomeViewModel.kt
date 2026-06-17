@@ -15,6 +15,7 @@ data class UserDoc(
     val dateNaissance: String,
     val role: String,
     val status: String,
+    val email: String,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -38,6 +39,7 @@ class HomeViewModel : ViewModel() {
                     dateNaissance = doc.get<String?>("date_naissance") ?: "",
                     role = doc.get<String?>("role") ?: "",
                     status = doc.get<String?>("status") ?: "",
+                    email = doc.get<String?>("email") ?: "",
                 )
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)

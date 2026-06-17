@@ -335,3 +335,43 @@ fun IconSend(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.
             strokeWidth = iconStroke(strokeWidth).width, cap = StrokeCap.Round)
     }
 }
+
+@Composable
+fun IconMenu(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val sw = strokeWidth * density
+        drawLine(tint, Offset(s(4f), s(7f)), Offset(s(20f), s(7f)), sw, StrokeCap.Round)
+        drawLine(tint, Offset(s(4f), s(12f)), Offset(s(20f), s(12f)), sw, StrokeCap.Round)
+        drawLine(tint, Offset(s(4f), s(17f)), Offset(s(20f), s(17f)), sw, StrokeCap.Round)
+    }
+}
+
+@Composable
+fun IconSettings(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val sw = strokeWidth * density
+        drawLine(tint, Offset(s(5f), s(4f)), Offset(s(5f), s(20f)), sw, StrokeCap.Round)
+        drawLine(tint, Offset(s(12f), s(4f)), Offset(s(12f), s(20f)), sw, StrokeCap.Round)
+        drawLine(tint, Offset(s(19f), s(4f)), Offset(s(19f), s(20f)), sw, StrokeCap.Round)
+        drawLine(tint, Offset(s(3f), s(9f)), Offset(s(7f), s(9f)), sw, StrokeCap.Round)
+        drawLine(tint, Offset(s(10f), s(15f)), Offset(s(14f), s(15f)), sw, StrokeCap.Round)
+        drawLine(tint, Offset(s(17f), s(11f)), Offset(s(21f), s(11f)), sw, StrokeCap.Round)
+    }
+}
+
+@Composable
+fun IconShield(tint: Color, modifier: Modifier = Modifier, strokeWidth: Float = 1.9f) {
+    Canvas(modifier = modifier) {
+        val st = iconStroke(strokeWidth)
+        val path = Path().apply {
+            moveTo(s(12f), s(2.5f))
+            lineTo(s(20f), s(6f))
+            lineTo(s(20f), s(12f))
+            cubicTo(s(20f), s(17f), s(16.5f), s(20.5f), s(12f), s(22f))
+            cubicTo(s(7.5f), s(20.5f), s(4f), s(17f), s(4f), s(12f))
+            lineTo(s(4f), s(6f))
+            close()
+        }
+        drawPath(path, tint, style = st)
+    }
+}

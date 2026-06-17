@@ -5,8 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -35,12 +33,11 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.HorizontalDivider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import fr.csp.app.ui.admin.AdminValidationScreen
-import fr.csp.app.ui.auth.AuthScreen
 import fr.csp.app.ui.auth.AuthViewModel
+import fr.csp.app.ui.menu.MenuScreen
 import fr.csp.app.ui.shop.ShopScreen
 import fr.csp.app.ui.theme.CspColors
 
@@ -92,7 +89,12 @@ private fun AdminPendingBanner(count: Int, onClick: () -> Unit) {
 // ── Salutation ────────────────────────────────────────────────
 
 @Composable
-fun Greeting(prenom: String? = null, nom: String? = null, onAvatarClick: () -> Unit = {}) {
+fun Greeting(
+    prenom: String? = null,
+    nom: String? = null,
+    onAvatarClick: () -> Unit = {},
+    onLoginClick: (() -> Unit)? = null,
+) {
     val hour = currentHour()
     val salut = if (hour >= 16) "Bonsoir" else "Bonjour"
     val greeting = if (prenom.isNullOrBlank()) salut else "$salut, $prenom !"
@@ -125,7 +127,7 @@ fun Greeting(prenom: String? = null, nom: String? = null, onAvatarClick: () -> U
                 ),
             )
         }
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = greeting,
                 style = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Black, color = CspColors.Ink, lineHeight = (28 * 1.02).sp),
@@ -136,67 +138,20 @@ fun Greeting(prenom: String? = null, nom: String? = null, onAvatarClick: () -> U
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-    }
-}
-
-// ── Profil utilisateur ────────────────────────────────────────
-
-@Composable
-private fun ProfileRow(label: String, value: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            label,
-            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CspColors.Muted),
-        )
-        Text(
-            value.ifEmpty { "—" },
-            style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = CspColors.Ink),
-        )
-    }
-}
-
-@Composable
-private fun UserProfileTab(user: UserDoc, onSignOut: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CspColors.Bg)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        Text(
-            "Mon profil",
-            style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Black, color = CspColors.Ink),
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(CspColors.Surface)
-                .border(1.dp, CspColors.Line2, RoundedCornerShape(16.dp))
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            ProfileRow(label = "Prénom", value = user.prenom)
-            HorizontalDivider(color = CspColors.Line2)
-            ProfileRow(label = "Nom", value = user.nom)
-            HorizontalDivider(color = CspColors.Line2)
-            ProfileRow(label = "Date de naissance", value = user.dateNaissance)
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .border(1.dp, CspColors.Red.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                .clickable(onClick = onSignOut)
-                .padding(vertical = 15.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                "Me déconnecter",
-                style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CspColors.Red),
-            )
+        if (!isLoggedIn && onLoginClick != null) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(CspColors.Surface)
+                    .border(1.dp, CspColors.Line, RoundedCornerShape(10.dp))
+                    .clickable(onClick = onLoginClick)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    "Se connecter",
+                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CspColors.Ink2),
+                )
+            }
         }
     }
 }
@@ -426,7 +381,7 @@ fun BottomNav(activeTab: Int = 0, onTabSelected: (Int) -> Unit = {}) {
     val tabs = listOf(
         Tab("Accueil", 0) { c, m -> IconHome(c, m) },
         Tab("Boutique", 1) { c, m -> IconShop(c, m) },
-        Tab("Profil", 2) { c, m -> IconUser(c, m) },
+        Tab("Menu", 2) { c, m -> IconMenu(c, m) },
     )
     Row(
         modifier = Modifier
@@ -463,7 +418,6 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Uni
     val isAdmin by vm.isAdmin.collectAsStateWithLifecycle()
     val pendingCount by vm.pendingCount.collectAsStateWithLifecycle()
     val authVm = viewModel { AuthViewModel() }
-    val scope = rememberCoroutineScope()
     var showSignupBanner by remember { mutableStateOf(false) }
     var showAdminValidation by remember { mutableStateOf(false) }
     val today = remember { currentDateIso() }
@@ -510,6 +464,7 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Uni
                         prenom = userDoc?.prenom,
                         nom = userDoc?.nom,
                         onAvatarClick = { selectedTab = 2 },
+                        onLoginClick = if (userDoc?.status != "VALIDATED") { { selectedTab = 2 } } else null,
                     )
                     cancelledBefore.forEachIndexed { index, event ->
                         AgendaItem(
@@ -556,15 +511,15 @@ fun HomeScreen(onEventClick: (ClubEvent) -> Unit = {}, onCreateEvent: (() -> Uni
                     }
                 }
                 1 -> ShopScreen()
-                2 -> if (userDoc != null && userDoc!!.status == "VALIDATED") {
-                    UserProfileTab(user = userDoc!!, onSignOut = { scope.launch { authVm.signOut() } })
-                } else {
-                    AuthScreen(
-                        vm = authVm,
-                        onLoginSuccess = { selectedTab = 0 },
-                        onSignupSuccess = { showSignupBanner = true; selectedTab = 0 },
-                    )
-                }
+                2 -> MenuScreen(
+                    userDoc = userDoc,
+                    isAdmin = isAdmin,
+                    authVm = authVm,
+                    onClose = { selectedTab = 0 },
+                    onSignOut = { selectedTab = 0 },
+                    onLoginSuccess = { selectedTab = 0 },
+                    onSignupSuccess = { showSignupBanner = true; selectedTab = 0 },
+                )
             }
         }
         BottomNav(activeTab = selectedTab, onTabSelected = { selectedTab = it })
